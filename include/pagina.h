@@ -17,119 +17,135 @@ main{max-width:980px;margin:auto;padding:0 16px 24px;display:grid;gap:14px}
 .card{background:var(--card);border:1px solid var(--borde);border-radius:12px;padding:14px}
 #banner{font-weight:600;color:#fff;border-radius:12px;padding:12px 16px}
 .VERDE{background:var(--ok)}.AMARILLO{background:var(--warn)}.ROJO{background:var(--bad)}
-.flujo{display:grid;grid-template-columns:1fr 110px 1fr;gap:10px;align-items:end}
-@media (max-width:560px){.flujo{grid-template-columns:1fr 70px 1fr}}
+.flujo{display:grid;grid-template-columns:1fr 100px 1fr;gap:10px;align-items:end}
+@media (max-width:560px){.flujo{grid-template-columns:1fr 64px 1fr}}
 .tq h3{margin:0 0 6px;font-size:.95rem}.tq p{margin:6px 0 0;font-size:.85rem;color:var(--sub)}
 .tanque{position:relative;height:200px;border:3px solid var(--sub);border-top:none;border-radius:0 0 14px 14px;overflow:hidden}
-.agua{position:absolute;bottom:0;left:0;right:0;background:var(--agua);transition:height .8s,background .8s}
-.lodo{position:absolute;bottom:0;left:0;right:0;height:8%;background:var(--lodo);opacity:.8}
-.marca{position:absolute;left:0;right:0;border-top:2px dashed var(--sub);font-size:.65rem;color:var(--sub)}
-.pct{position:absolute;inset:0;display:grid;place-items:center;font-size:1.7rem;font-weight:700;text-shadow:0 1px 3px #0008;color:#fff}
-.paso{text-align:center;font-size:.75rem;color:var(--sub);padding-bottom:40px}
-.paso .ic{font-size:1.4rem;display:block;opacity:.35;transition:opacity .3s}.paso .ic.on{opacity:1}
+.agua{position:absolute;bottom:0;left:0;right:0;background:var(--agua);transition:height .8s}
+.lodo{position:absolute;bottom:0;left:0;right:0;background:var(--lodo);transition:height .8s}
+.pct{position:absolute;inset:0;display:grid;place-items:center;font-size:1.6rem;font-weight:700;text-shadow:0 1px 3px #0008;color:#fff;text-align:center}
+.paso{text-align:center;font-size:.72rem;color:var(--sub);padding-bottom:40px}
+.paso .ic{font-size:1.35rem;display:block;opacity:.3;transition:opacity .3s}.paso .ic.on{opacity:1}
+.barra{height:10px;border-radius:5px;background:linear-gradient(90deg,#d63c3c 0%,#d69e0b 30%,#1f9d55 46%,#1f9d55 54%,#d69e0b 57%,#d63c3c 75%);position:relative;margin:10px 0 2px}
+.barra i{position:absolute;top:-4px;width:4px;height:18px;background:var(--txt);border-radius:2px;transition:left .8s}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
 .kpi b{display:block;font-size:1.25rem}.kpi span{color:var(--sub);font-size:.8rem;display:block}
 canvas{width:100%;height:200px}
 .ctrl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px}
 button{border:0;border-radius:8px;padding:9px 14px;font-weight:600;cursor:pointer;background:var(--agua);color:#fff}
 button.sec{background:var(--sub)}input{padding:8px;border-radius:8px;border:1px solid var(--borde);width:90px;background:var(--card);color:var(--txt)}
+table{border-collapse:collapse;font-size:.85rem;margin-top:6px}td,th{padding:3px 10px 3px 0;text-align:left}
 </style></head><body>
 <header><h1>💧 AquaAlerta</h1><small id="con">conectando…</small></header>
 <main>
  <div id="banner" class="VERDE">Cargando…</div>
 
  <div class="card"><div class="flujo">
-  <div class="tq"><h3>R1 · Sedimentación</h3>
-   <div class="tanque"><div class="agua" id="a1" style="height:0"></div><div class="lodo"></div>
-    <div class="marca" id="m1">mín. succión</div><div class="pct" id="p1">–</div></div>
-   <p><b id="l1">–</b> L · <span id="n1">–</span> NTU<br><span id="s1">–</span></p></div>
+  <div class="tq"><h3>R1 · Sedimentos</h3>
+   <div class="tanque"><div class="agua" id="a1" style="height:85%"></div><div class="lodo" id="lodo1" style="height:0"></div>
+    <div class="pct" id="p1">–</div></div>
+   <p><b id="sed">–</b> · <span id="n1">–</span> NTU<br><span id="s1">–</span></p></div>
   <div class="paso">
+   <span class="ic" id="icP">🟤</span>purga
    <span class="ic" id="icB">⚙️</span>bomba
-   <span class="ic" id="icF">🧽</span>filtro
-   <span class="ic" id="icG">💧</span>goteo cloro</div>
+   <span class="ic" id="icF">🧽</span>filtro</div>
   <div class="tq"><h3>R2 · Agua tratada</h3>
-   <div class="tanque"><div class="agua" id="a2" style="height:0"></div>
-    <div class="marca" id="m2">rellena</div><div class="pct" id="p2">–</div></div>
-   <p><b id="l2">–</b> L · <span id="n2">–</span> NTU<br><span id="s2">–</span></p></div>
+   <div class="tanque"><div class="agua" id="a2" style="height:0"></div><div class="pct" id="p2">–</div></div>
+   <p><b id="l2">–</b> L · pH <b id="ph">–</b><br><span id="s2">–</span></p></div>
  </div></div>
 
  <div class="kpis">
-  <div class="card kpi"><span>Llenado (origen → R1)</span><b id="bL">–</b><span id="mL"></span></div>
-  <div class="card kpi"><span>Transferencia (R1 → filtro → R2)</span><b id="bT">–</b><span id="mT"></span></div>
+  <div class="card kpi"><span>Bomba de purga (lodo de R1)</span><b id="bP">–</b><span id="mP"></span></div>
+  <div class="card kpi"><span>Bomba R1 → filtro → R2</span><b id="bT">–</b><span id="mT"></span></div>
   <div class="card kpi"><span>Gotero de cloro</span><b id="bG">–</b><span id="mG"></span></div>
-  <div class="card kpi"><span>Origen</span><b id="ori">–</b></div>
  </div>
 
- <div class="card"><b>🧪 Cloración de R2</b>
-  <div class="kpis" style="margin-top:10px">
-   <div class="kpi"><span>Último llenado de R2</span><b id="gC">–</b><span id="gCt"></span></div>
-   <div class="kpi"><span>Dosis aplicada</span><b id="gD">–</b><span id="gDt"></span></div>
-   <div class="kpi"><span>Cloro en el gotero</span><b id="gR">–</b><span id="gRt"></span></div>
-   <div class="kpi"><span>Si hay que clorar R2 a mano</span><b id="gM">–</b><span id="gMt"></span></div>
+ <div class="card"><b>🧪 pH y cloro en R2</b>
+  <div class="barra"><i id="phMarca" style="left:50%"></i></div>
+  <small style="display:flex;justify-content:space-between"><span>0 ácido</span><span>7 neutro</span><span>14 básico</span></small>
+  <div class="kpis" style="margin-top:12px">
+   <div class="kpi"><span>pH actual</span><b id="phB">–</b><span id="phT"></span></div>
+   <div class="kpi"><span>Agua por clorar</span><b id="cPend">–</b><span id="cPendT"></span></div>
+   <div class="kpi"><span>Última dosis</span><b id="cDosis">–</b><span id="cDosisT"></span></div>
+   <div class="kpi"><span>Cloro en el gotero</span><b id="cRest">–</b><span id="cRestT"></span></div>
   </div>
-  <div class="ctrl"><button class="sec" onclick="enviar('recarga')">Recargué el cloro</button></div>
-  <small>El gotero se abre solo mientras pasa agua a R2, así la dosis es proporcional (<span id="gRate"></span>).
-   Cloro de uso doméstico (hipoclorito 5–6 %, sin aroma), 2 gotas por litro. Confirme la dosis con la guía del Ministerio de Salud y la etiqueta del producto.</small></div>
+  <table><tr><th>pH</th><th>Gotas por litro</th></tr>
+   <tr><td id="t1"></td><td>no se clora: corregir pH</td></tr>
+   <tr><td id="t2"></td><td id="t2g"></td></tr>
+   <tr><td id="t3"></td><td id="t3g"></td></tr>
+   <tr><td id="t4"></td><td>no se clora: corregir pH</td></tr></table>
+  <div class="ctrl"><button onclick="enviar('clorar')">Clorar todo R2</button>
+   <button class="sec" onclick="enviar('recarga')">Recargué el cloro</button></div>
+  <small>Cloro de uso doméstico (hipoclorito 5–6 %, sin aroma). Con pH alto el cloro pierde efecto: hay que corregir el pH, no echar más cloro.
+   Valide la tabla con la guía del Ministerio de Salud y la etiqueta del producto.</small></div>
 
- <div class="card"><b>Últimos 30 min</b> <small>— <span style="color:#a07a4a">R1</span> · <span style="color:var(--agua)">R2</span> (%) ·
-  franjas: <span style="color:var(--agua)">transferencia</span>, <span style="color:#8b5cf6">goteo</span></small><canvas id="graf"></canvas></div>
+ <div class="card"><b>Últimos 30 min</b> <small>— <span style="color:var(--agua)">nivel R2 %</span> ·
+  <span style="color:#a07a4a">- - sedimentos R1</span> · <span style="color:#8b5cf6">pH</span> ·
+  franjas: <span style="color:#a07a4a">purga</span>, <span style="color:var(--agua)">transferencia</span>, <span style="color:#8b5cf6">goteo</span></small>
+  <canvas id="graf"></canvas></div>
 
  <div class="card"><b>Control</b>
   <div class="ctrl">PIN <input id="pin" type="password" inputmode="numeric"></div>
-  <div class="ctrl"><b style="min-width:110px">Llenado R1:</b>
-   <button onclick="enviar('l_auto')">Automático</button><button onclick="enviar('l_on')">Encender</button>
-   <button class="sec" onclick="enviar('l_off')">Apagar</button></div>
+  <div class="ctrl"><b style="min-width:110px">Purga R1:</b>
+   <button onclick="enviar('p_auto')">Automático</button><button onclick="enviar('p_on')">Encender</button>
+   <button class="sec" onclick="enviar('p_off')">Apagar</button></div>
   <div class="ctrl"><b style="min-width:110px">Transferencia:</b>
    <button onclick="enviar('t_auto')">Automático</button><button onclick="enviar('t_on')">Encender</button>
    <button class="sec" onclick="enviar('t_off')">Apagar</button></div>
   <div class="ctrl"><button class="sec" onclick="enviar('reset')">Reiniciar fallas</button><small id="resp"></small></div>
-  <small>Protecciones que valen también en manual: corte al 95 %, no transfiere hasta que R1 termine de sedimentar ni por debajo del lodo,
-   y si R2 no sube con la bomba encendida avisa «Filtro tapado?».</small></div>
+  <small>Protecciones: no pasa agua a R2 mientras R1 tenga sedimentos, R1 esté sin agua o R2 se esté clorando;
+   corte al 95 %; si R2 no sube con la bomba encendida avisa «Filtro tapado?».</small></div>
 
  <div class="card"><b>Métricas</b><div class="kpis" style="margin-top:10px">
-  <div class="kpi"><span>Litros que entraron a R1</span><b id="xL">–</b></div>
+  <div class="kpi"><span>Purgas de lodo</span><b id="xP">–</b><span id="xPt"></span></div>
+  <div class="kpi"><span>Agua usada en purga</span><b id="xPl">–</b><span>reutilizable para riego</span></div>
   <div class="kpi"><span>Litros tratados (a R2)</span><b id="xT">–</b></div>
-  <div class="kpi"><span>Turbidez R1 → R2</span><b id="xN">–</b><span id="xNt"></span></div>
+  <div class="kpi"><span>Dosis aplicadas</span><b id="xD">–</b><span id="xDt"></span></div>
   <div class="kpi"><span>Respuesta transferencia</span><b id="xR">–</b></div>
-  <div class="kpi"><span>Llenados sin desborde</span><b id="xC">–</b></div>
-  <div class="kpi"><span>Litros ahorrados (est.)</span><b id="xA">–</b></div>
  </div></div>
 </main>
 <script>
 const $=id=>document.getElementById(id);
 try{$('pin').value=sessionStorage.getItem('pin')||''}catch(e){}
-const tt=s=>s>=3600?Math.floor(s/3600)+' h '+Math.floor(s/60%60)+' min':s>=60?Math.floor(s/60)+' min '+(s%60)+' s':s+' s';
-const est=b=>b.falla?'FALLA':(b.on?'ENCENDIDA':'apagada');
+let tabla=false;
 async function estado(){
  try{
-  const d=await (await fetch('/api/estado')).json(),r1=d.r1,r2=d.r2,L=d.llenado,T=d.transfer,G=d.goteo,u=d.umbrales;
+  const d=await (await fetch('/api/estado')).json(),r1=d.r1,P=d.purga,T=d.transfer,r2=d.r2,C=d.cloro,k=d.cfg;
   $('con').textContent='en línea · '+new Date().toLocaleTimeString();
   $('banner').className=d.alerta;$('banner').textContent=d.causa;
-  $('a1').style.height=(r1.ok?r1.nivel:0)+'%';$('a1').style.background=r1.turbidez?'#7d8f6a':'';
-  $('p1').textContent=r1.ok?r1.nivel.toFixed(0)+'%':'¿?';$('l1').textContent=r1.ok?r1.litros:'–';$('n1').textContent=Math.round(r1.ntu);
-  $('m1').style.bottom=u.r1_min+'%';
-  $('s1').textContent=r1.reposo_ok?(r1.disponible?'✔ sedimentada, lista':r1.motivo):'⏳ sedimentando · faltan '+tt(r1.reposo_falta_s);
-  $('a2').style.height=(r2.ok?r2.nivel:0)+'%';$('a2').style.background=r2.turbidez?'#7d8f6a':'';
-  $('p2').textContent=r2.ok?r2.nivel.toFixed(0)+'%':'¿?';$('l2').textContent=r2.ok?r2.litros:'–';$('n2').textContent=Math.round(r2.ntu);
-  $('m2').style.bottom=u.r2_on+'%';
-  $('s2').textContent=G.contacto_ok?'✔ lista para usar':'⏳ cloro actuando · '+tt(G.contacto_falta_s);
-  $('icB').classList.toggle('on',T.on);$('icF').classList.toggle('on',T.on);$('icG').classList.toggle('on',G.on);
-  $('bL').textContent=est(L);$('mL').textContent=(L.auto?'':'manual · ')+(L.falla||L.motivo);
-  $('bT').textContent=est(T);$('mT').textContent=(T.auto?'':'manual · ')+(T.falla||T.motivo);
-  $('bG').textContent=G.on?'GOTEANDO':'cerrado';$('mG').textContent=Math.round(G.gotas_total)+' gotas en total';
-  $('ori').textContent=d.origen?'con agua':'SIN AGUA';
-  $('gC').textContent=Math.round(G.gotas_ciclo)+' gotas';$('gCt').textContent='≈ '+(G.gotas_ciclo/G.gotas_ml).toFixed(1)+' ml';
-  $('gD').textContent=G.dosis_pct<0?'–':Math.round(G.dosis_pct)+' %';
-  $('gDt').textContent=G.dosis_pct<0?'aún sin ciclo':(Math.abs(G.dosis_pct-100)<=20?'✔ correcta':'⚠ calibrar el gotero');
-  $('gR').textContent=Math.round(G.ml_restantes)+' ml';$('gRt').textContent=Math.round(G.pct_restante)+' % de la botella';
-  $('gM').textContent=Math.round(G.gotas_r2_completo)+' gotas';$('gMt').textContent='≈ '+Math.round(G.gotas_r2_completo/G.gotas_ml)+' ml para '+r2.litros+' L';
-  $('gRate').textContent=G.gotas_min+' gotas/min';
-  $('xL').textContent=L.litros+' L';$('xT').textContent=T.litros+' L';
-  $('xN').textContent=Math.round(r1.ntu)+' → '+Math.round(r2.ntu)+' NTU';
-  $('xNt').textContent=r1.ntu>0?'−'+Math.max(0,Math.round((r1.ntu-r2.ntu)/r1.ntu*100))+' %':'';
+  // R1
+  $('a1').style.height=r1.agua?'85%':'6%';
+  $('lodo1').style.height=Math.min(40,r1.ntu/300*40)+'%';
+  $('p1').textContent=['🙂','😐','🟤'][r1.sedimento];
+  $('sed').textContent='Sedimentos: '+['pocos','medios','muchos'][r1.sedimento];$('n1').textContent=r1.ntu;
+  $('s1').textContent=!r1.agua?'⚠ R1 sin agua':P.estado=='PULSO'?'Purgando lodo '+P.pulso+'/'+P.max_pulsos:
+   P.estado=='PAUSA'?'Asentando '+P.pulso+'/'+P.max_pulsos:(r1.disponible?'✔ sin sedimentos, lista':r1.motivo);
+  // R2
+  $('a2').style.height=(r2.ok?r2.nivel:0)+'%';$('p2').textContent=r2.ok?r2.nivel.toFixed(0)+'%':'¿?';
+  $('l2').textContent=r2.ok?r2.litros:'–';$('ph').textContent=r2.ph.toFixed(1);
+  $('s2').textContent=C.estado+(C.falta_s>0?' · '+C.falta_s+' s':'');
+  $('icP').classList.toggle('on',P.on);$('icB').classList.toggle('on',T.on);$('icF').classList.toggle('on',T.on);
+  // bombas
+  $('bP').textContent=P.falla?'FALLA':(P.on?'ENCENDIDA':'apagada');$('mP').textContent=(P.auto?'':'manual · ')+P.motivo;
+  $('bT').textContent=T.falla?'FALLA':(T.on?'ENCENDIDA':'apagada');$('mT').textContent=(T.auto?'':'manual · ')+(T.falla||T.motivo);
+  $('bG').textContent=C.goteo?'GOTEANDO':'cerrado';$('mG').textContent=C.goteo?Math.round(C.aplicadas)+' / '+Math.round(C.objetivo)+' gotas':C.estado;
+  // pH y cloro
+  $('phMarca').style.left='calc('+(r2.ph/14*100)+'% - 2px)';
+  $('phB').textContent=r2.ph.toFixed(2);
+  $('phT').textContent=r2.gotas_l<0?(r2.ph<k.ph_min?'⚠ muy ácido: corregir':'⚠ muy básico: corregir'):'✔ '+r2.gotas_l+' gotas/L';
+  $('cPend').textContent=Math.round(C.pendientes_l)+' L';
+  $('cPendT').textContent=C.pendientes_l>0&&r2.gotas_l>0?'≈ '+Math.round(C.pendientes_l*r2.gotas_l)+' gotas':'';
+  $('cDosis').textContent=C.dosis?Math.round(C.objetivo)+' gotas':'–';
+  $('cDosisT').textContent=C.dosis?'pH '+C.ph_dosis.toFixed(1)+' · '+C.gotas_l_usadas+' gotas/L · ≈ '+(C.objetivo/C.gotas_ml).toFixed(1)+' ml':'';
+  $('cRest').textContent=Math.round(C.ml_restantes)+' ml';$('cRestT').textContent=Math.round(C.pct_restante)+' % de la botella';
+  if(!tabla){tabla=true;
+   $('t1').textContent='menos de '+k.ph_min;$('t2').textContent=k.ph_min+' – '+k.ph_opt;$('t2g').textContent=k.g_normal+' (normal)';
+   $('t3').textContent=k.ph_opt+' – '+k.ph_max;$('t3g').textContent=k.g_aum+' (aumentada)';$('t4').textContent='más de '+k.ph_max;}
+  // métricas
+  $('xP').textContent=P.purgas;$('xPt').textContent=P.ntu_antes<0?'':'última: '+P.ntu_antes+' → '+P.ntu_despues+' NTU';
+  $('xPl').textContent=P.litros+' L';$('xT').textContent=T.litros+' L';
+  $('xD').textContent=C.dosis;$('xDt').textContent=Math.round(C.total)+' gotas ≈ '+Math.round(C.total/C.gotas_ml)+' ml';
   $('xR').textContent=T.respuesta_s<0?'–':T.respuesta_s.toFixed(1)+' s';
-  $('xC').textContent=L.completos+T.completos;
-  $('xA').textContent=d.linea_base>0?Math.round(L.completos*d.linea_base)+' L':'falta línea base';
  }catch(e){$('con').textContent='sin conexión'}
 }
 async function historial(){
@@ -137,12 +153,15 @@ async function historial(){
   const h=await (await fetch('/api/historial')).json(),c=$('graf'),x=c.getContext('2d');
   const W=c.width=c.clientWidth*devicePixelRatio,H=c.height=c.clientHeight*devicePixelRatio,n=h.datos.length;
   x.clearRect(0,0,W,H);if(n<2)return;
-  const px=i=>i/(h.max-1)*W,py=v=>H-v/100*H,w=W/(h.max-1)+1;
-  x.fillStyle='#2f8fd833';h.datos.forEach((p,i)=>{if(p[4]&2)x.fillRect(px(i),0,w,H*.88)});
-  x.fillStyle='#8b5cf6aa';h.datos.forEach((p,i)=>{if(p[4]&4)x.fillRect(px(i),H*.9,w,H*.1)});
-  [[0,'#a07a4a'],[1,'#2f8fd8']].forEach(([k,col])=>{
-   x.strokeStyle=col;x.lineWidth=2*devicePixelRatio;x.beginPath();
-   h.datos.forEach((p,i)=>i?x.lineTo(px(i),py(p[k])):x.moveTo(px(i),py(p[k])));x.stroke()});
+  const px=i=>i/(h.max-1)*W,w=W/(h.max-1)+1;
+  // franjas: purga arriba, transferencia al medio, goteo abajo
+  [[1,'#a07a4a99',0,.08],[2,'#2f8fd833',.08,.84],[4,'#8b5cf6aa',.92,.08]].forEach(([b,col,y,alto])=>{x.fillStyle=col;
+   h.datos.forEach((p,i)=>{if(p[3]&b)x.fillRect(px(i),y*H,w,alto*H)})});
+  const linea=(f,col,dash)=>{x.strokeStyle=col;x.lineWidth=2*devicePixelRatio;x.setLineDash(dash);x.beginPath();
+   h.datos.forEach((p,i)=>{const y=H-f(p)*H;i?x.lineTo(px(i),y):x.moveTo(px(i),y)});x.stroke();x.setLineDash([])};
+  linea(p=>p[0]/100,'#2f8fd8',[]);
+  linea(p=>Math.min(p[1],300)/300,'#a07a4a',[6,4]);
+  linea(p=>p[2]/140,'#8b5cf6',[]);
  }catch(e){}
 }
 async function enviar(accion){

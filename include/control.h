@@ -1,13 +1,12 @@
 // Lógica de control y alertas, separada del hardware (se puede probar en PC).
 #pragma once
 #include <math.h>
-#include <string.h>
 
 #include "config.h"
 
 // ---------- Conversiones ----------
-inline float nivelDesdeDistancia(float distCm, const Reservorio& r) {
-  float p = (r.distVacioCm - distCm) / (r.distVacioCm - r.distLlenoCm) * 100.0f;
+inline float nivelDesdeDistancia(float distCm) {
+  float p = (R2_DIST_VACIO_CM - distCm) / (R2_DIST_VACIO_CM - R2_DIST_LLENO_CM) * 100.0f;
   return p < 0 ? 0 : (p > 100 ? 100 : p);
 }
 
@@ -18,6 +17,25 @@ inline float ntuDesdeVoltaje(float v) {
   return ntu < 0 ? 0 : ntu;
 }
 
+// Recta de calibración con dos buffers (pH 7 y pH 4).
+inline float phDesdeVoltaje(float v) {
+  float pendiente = (PH_V4 - PH_V7) / 3.0f;  // V por unidad de pH
+  float ph = 7.0f + (PH_V7 - v) / pendiente;
+  return ph < 0 ? 0 : (ph > 14 ? 14 : ph);
+}
+
+// Gotas por litro según el pH; -1 si el pH está fuera del rango en que el cloro sirve.
+inline float gotasPorLitro(float ph) {
+  if (isnan(ph) || ph < PH_MIN || ph > PH_MAX) return -1;
+  return ph <= PH_OPTIMO_MAX ? GOTAS_L_NORMAL : GOTAS_L_AUMENTADA;
+}
+
+// 0 poco, 1 medio, 2 alto
+inline int nivelSedimento(float ntu) {
+  if (isnan(ntu) || ntu < SED_MEDIO_NTU) return 0;
+  return ntu < SED_ALTO_NTU ? 1 : 2;
+}
+
 template <int N>
 class MediaMovil {
  public:
@@ -25,10 +43,6 @@ class MediaMovil {
     datos_[pos_] = v;
     pos_ = (pos_ + 1) % N;
     if (n_ < N) n_++;
-    return valor();
-  }
-  float valor() const {
-    if (!n_) return NAN;
     float s = 0;
     for (int i = 0; i < n_; i++) s += datos_[i];
     return s / n_;
@@ -39,37 +53,115 @@ class MediaMovil {
   int pos_ = 0, n_ = 0;
 };
 
-// Turbidez con histéresis: 0 limpia, 1 turbia, 2 muy turbia.
-inline int nivelTurbidez(float ntu, int previo) {
-  if (isnan(ntu)) return previo;
-  float h = TURB_HISTERESIS_NTU;
-  if (ntu >= TURB_ALTA_NTU || (previo == 2 && ntu >= TURB_ALTA_NTU - h)) return 2;
-  if (ntu >= TURB_PRECAUCION_NTU || (previo >= 1 && ntu >= TURB_PRECAUCION_NTU - h)) return 1;
-  return 0;
-}
+// ---------- Purga de sedimentos en R1 ----------
+enum class EstadoPurga { LIMPIO, PULSO, PAUSA };
 
-// ---------- Bomba genérica: llena un destino desde un origen ----------
-enum class Falla { NINGUNA, SIN_SUBIR, TIEMPO_MAX };
+class ControlPurga {
+ public:
+  bool automatico = true;
+  bool encendida = false;
+  bool falla = false;  // no logra limpiar tras PURGA_MAX_PULSOS
+  EstadoPurga estado = EstadoPurga::LIMPIO;
+  int pulso = 0;
+  const char* motivo = "Sin sedimentos";
 
-struct ParamBomba {
-  float encender, apagar;  // % del destino (modo automático, con histéresis)
-  float capacidadL;        // del destino, para contar litros
-  const char* txtSinSubir; // texto de la falla "el destino no sube" (≤16 car. para el LCD)
-  const char* txtTiempo;
+  // Métricas
+  unsigned long purgas = 0;  // purgas terminadas con éxito
+  unsigned long msEncendida = 0;
+  float ntuAntes = -1, ntuDespues = -1;  // última purga
+
+  void modoAutomatico() { automatico = true; pedidoManual_ = false; }
+  void manual(bool encender) { automatico = false; pedidoManual_ = encender; estado = EstadoPurga::LIMPIO; }
+  void reiniciarFalla() { falla = false; estado = EstadoPurga::LIMPIO; }
+  unsigned long msTotal(unsigned long ahora) const { return msEncendida + (encendida ? ahora - tOn_ : 0); }
+  float litrosPurgados(unsigned long ahora) const { return msTotal(ahora) / 60000.0f * PURGA_CAUDAL_LPM; }
+
+  // R1 ya no tiene sedimentos: se puede pasar el agua a R2.
+  bool sinSedimentos(float ntu) const {
+    return !falla && !encendida && estado == EstadoPurga::LIMPIO && !isnan(ntu) && ntu < SED_MEDIO_NTU;
+  }
+
+  bool actualizar(float ntu, bool hayAgua, bool transfiriendo, unsigned long ahora) {
+    bool quiere = false;
+    if (falla) {
+      motivo = "Purga sin efecto";
+    } else if (!automatico) {
+      quiere = pedidoManual_;
+      motivo = quiere ? "Manual: ON" : "Manual: OFF";
+    } else {
+      switch (estado) {
+        case EstadoPurga::LIMPIO:
+          if (!isnan(ntu) && ntu >= SED_MEDIO_NTU && !transfiriendo && hayAgua) {
+            estado = EstadoPurga::PULSO;
+            pulso = 1;
+            desde_ = ahora;
+            ntuInicio_ = ntu;
+          }
+          motivo = estado != EstadoPurga::LIMPIO ? "Purgando"
+                   : (ntu >= SED_MEDIO_NTU ? "Con sedimentos" : "Sin sedimentos");
+          break;
+        case EstadoPurga::PULSO:
+          if (ahora - desde_ >= PURGA_PULSO_MS) { estado = EstadoPurga::PAUSA; desde_ = ahora; }
+          motivo = "Purgando";
+          break;
+        case EstadoPurga::PAUSA:  // deja asentar y vuelve a medir
+          motivo = "Asentando";
+          if (ahora - desde_ >= PURGA_PAUSA_MS) {
+            if (!isnan(ntu) && ntu <= SED_LIMPIO_NTU) {
+              estado = EstadoPurga::LIMPIO;
+              purgas++;
+              ntuAntes = ntuInicio_;
+              ntuDespues = ntu;
+              motivo = "Sin sedimentos";
+            } else if (pulso >= PURGA_MAX_PULSOS) {
+              falla = true;
+              estado = EstadoPurga::LIMPIO;
+              motivo = "Purga sin efecto";
+            } else {
+              pulso++;
+              estado = EstadoPurga::PULSO;
+              desde_ = ahora;
+            }
+          }
+          break;
+      }
+      quiere = estado == EstadoPurga::PULSO;
+    }
+    if (!hayAgua) { quiere = false; motivo = "R1 sin agua"; }
+
+    if (quiere && !encendida) tOn_ = ahora;
+    if (!quiere && encendida) msEncendida += ahora - tOn_;
+    encendida = quiere;
+    return encendida;
+  }
+
+ private:
+  bool pedidoManual_ = false;
+  unsigned long desde_ = 0, tOn_ = 0;
+  float ntuInicio_ = 0;
 };
 
+// ---------- Bomba de transferencia (R1 → filtro → R2) ----------
+enum class Falla { NINGUNA, SIN_SUBIR, TIEMPO_MAX };
+
+inline const char* textoFalla(Falla f) {
+  switch (f) {
+    case Falla::SIN_SUBIR:  return "Filtro tapado?";
+    case Falla::TIEMPO_MAX: return "Transf. t. max";
+    default:                return "";
+  }
+}
+
 struct EntradaBomba {
-  float nivel;            // % del destino
+  float nivel;           // % de R2
   bool nivelOk;
-  bool origen;            // el origen puede entregar agua
-  const char* porQueNo;   // motivo cuando origen == false
+  bool origen;           // R1 puede entregar agua
+  const char* porQueNo;  // motivo cuando origen == false
   unsigned long ahora;
 };
 
 class ControlBomba {
  public:
-  explicit ControlBomba(const ParamBomba& p) : p_(p) {}
-
   bool automatico = true;
   bool encendida = false;
   Falla falla = Falla::NINGUNA;
@@ -77,15 +169,12 @@ class ControlBomba {
 
   // Métricas
   unsigned long ciclos = 0;
-  unsigned long msEncendida = 0;       // ciclos cerrados
-  float litrosBombeados = 0;           // medidos por la subida del destino
-  float ultimaRespuestaS = -1;         // encendido → el destino sube SUBIDA_MINIMA
-  unsigned long llenadosCompletos = 0; // llegó a "apagar" sin desbordar
-  unsigned long cortesSeguridad = 0;   // cortes por NIVEL_SEGURIDAD
+  unsigned long msEncendida = 0;
+  float litrosBombeados = 0;           // medidos por la subida de R2
+  float ultimaRespuestaS = -1;         // encendido → R2 sube SUBIDA_MINIMA
+  unsigned long llenadosCompletos = 0;
+  unsigned long cortesSeguridad = 0;
 
-  const char* textoFalla() const {
-    return falla == Falla::SIN_SUBIR ? p_.txtSinSubir : (falla == Falla::TIEMPO_MAX ? p_.txtTiempo : "");
-  }
   void modoAutomatico() { automatico = true; pedidoManual_ = false; }
   void manual(bool encender) { automatico = false; pedidoManual_ = encender; }
   void reiniciarFalla() { falla = Falla::NINGUNA; }
@@ -93,12 +182,11 @@ class ControlBomba {
     return msEncendida + (encendida ? ahora - desde_ : 0);
   }
 
-  // Devuelve true si el relé debe quedar encendido.
   bool actualizar(const EntradaBomba& e) {
     bool quiere;
     if (automatico) {
-      quiere = encendida ? e.nivel < p_.apagar : e.nivel <= p_.encender;
-      motivo = quiere ? "Auto: bombeando" : "Auto: en reposo";
+      quiere = encendida ? e.nivel < R2_APAGAR : e.nivel <= R2_ENCENDER;
+      motivo = quiere ? "Auto: pasando agua" : "Auto: en reposo";
       if (encendida && !quiere && e.nivelOk) llenadosCompletos++;
     } else {
       quiere = pedidoManual_;
@@ -107,14 +195,14 @@ class ControlBomba {
 
     // Protecciones (valen también en modo manual).
     if (encendida) revisarFuncionamiento(e);
-    if (falla != Falla::NINGUNA) { quiere = false; motivo = textoFalla(); }
-    if (!e.nivelOk) { quiere = false; motivo = "Sin lectura nivel"; }
+    if (falla != Falla::NINGUNA) { quiere = false; motivo = textoFalla(falla); }
+    if (!e.nivelOk) { quiere = false; motivo = "Sin lectura R2"; }
     if (!e.origen)  { quiere = false; motivo = e.porQueNo; }
     if (e.nivelOk && e.nivel >= NIVEL_SEGURIDAD) {
       if (quiere && encendida) cortesSeguridad++;
       quiere = false;
       pedidoManual_ = false;
-      motivo = "Corte: lleno";
+      motivo = "Corte: R2 lleno";
     }
     if (quiere && !encendida && huboApagado_ && e.ahora - hastaApagado_ < BOMBA_MIN_APAGADA_MS) {
       quiere = false;
@@ -127,7 +215,6 @@ class ControlBomba {
   }
 
  private:
-  ParamBomba p_;
   bool pedidoManual_ = false;
   bool esperandoRespuesta_ = false, huboApagado_ = false;
   unsigned long desde_ = 0, hastaApagado_ = 0;
@@ -139,7 +226,7 @@ class ControlBomba {
       esperandoRespuesta_ = false;
       ultimaRespuestaS = t / 1000.0f;
     }
-    // No sube: bomba en seco, tubo roto o filtro tapado.
+    // R2 no sube: filtro tapado, manguera doblada o bomba en seco.
     if (esperandoRespuesta_ && t >= BOMBA_SIN_SUBIR_MS) falla = Falla::SIN_SUBIR;
     if (t >= BOMBA_MAX_MS) falla = Falla::TIEMPO_MAX;
   }
@@ -156,89 +243,131 @@ class ControlBomba {
     encendida = false;
     msEncendida += e.ahora - desde_;
     if (e.nivelOk && e.nivel > nivelInicial_)
-      litrosBombeados += (e.nivel - nivelInicial_) / 100.0f * p_.capacidadL;
+      litrosBombeados += (e.nivel - nivelInicial_) / 100.0f * R2_CAPACIDAD_L;
     huboApagado_ = true;
     hastaApagado_ = e.ahora;
   }
 };
 
-// ---------- Sedimentación en R1 ----------
-// Cuenta el reposo desde la última vez que entró agua (por la bomba o por otro
-// lado: tanquero, lluvia). Mientras no termine, no se transfiere a R2.
-class Sedimentacion {
- public:
-  void actualizar(float nivel, bool nivelOk, bool entrandoAgua, unsigned long ahora) {
-    if (!iniciado_) { desde_ = ahora; iniciado_ = true; }
-    if (!nivelOk) return;
-    if (entrandoAgua || isnan(ref_)) { ref_ = nivel; if (entrandoAgua) desde_ = ahora; return; }
-    if (nivel < ref_) ref_ = nivel;  // se sacó agua: no revuelve
-    else if (nivel > ref_ + SUBIDA_MINIMA) { ref_ = nivel; desde_ = ahora; }  // entró agua
-  }
-  bool lista(unsigned long ahora) const { return iniciado_ && ahora - desde_ >= SEDIMENTACION_MS; }
-  unsigned long faltaMs(unsigned long ahora) const {
-    return lista(ahora) ? 0 : SEDIMENTACION_MS - (ahora - desde_);
-  }
+// ---------- Cloración de R2 según el pH ----------
+//  agua nueva → MEZCLANDO (espera) → mide pH → DOSIFICANDO (gotero) → CONTACTO → LISTA
+//                                       └─ pH fuera de rango → PH_FUERA (no clora, avisa)
+enum class EstadoCloro { SIN_DATO, LLENANDO, MEZCLANDO, PH_FUERA, SIN_CLORO, DOSIFICANDO, CONTACTO, LISTA };
 
- private:
-  bool iniciado_ = false;
-  unsigned long desde_ = 0;
-  float ref_ = NAN;
-};
+inline const char* textoCloro(EstadoCloro e) {
+  switch (e) {
+    case EstadoCloro::SIN_DATO:    return "Sin registro";
+    case EstadoCloro::LLENANDO:    return "Entra agua";
+    case EstadoCloro::MEZCLANDO:   return "Midiendo pH";
+    case EstadoCloro::PH_FUERA:    return "pH fuera rango";
+    case EstadoCloro::SIN_CLORO:   return "Falta cloro";
+    case EstadoCloro::DOSIFICANDO: return "Aplicando cloro";
+    case EstadoCloro::CONTACTO:    return "Clorando:espere";
+    default:                       return "Agua lista";
+  }
+}
 
-// ---------- Gotero de cloro en R2 ----------
-// Se abre mientras pasa agua a R2: la dosis queda proporcional a los litros.
-class Goteo {
+class Cloracion {
  public:
-  bool abierto = false;
-  float gotasTotal = 0;
-  float gotasCiclo = 0;  // del ciclo en curso o del último
-  float dosisPct = -1;   // último ciclo: gotas reales / gotas necesarias × 100
-  unsigned long ultimoCierre = 0;
-  bool huboGoteo = false;
+  EstadoCloro estado = EstadoCloro::SIN_DATO;
+  bool goteoAbierto = false;
+  float litrosPendientes = 0;  // agua nueva sin clorar
+  float gotasObjetivo = 0, gotasAplicadas = 0, gotasTotal = 0;
+  float phDosis = -1;          // pH con el que se calculó la última dosis
+  float gotasPorLitroUsadas = 0;
+  unsigned long dosis = 0;
 
   float mlRestantes() const {
     float r = GOTERO_CAPACIDAD_ML - (gotasTotal - gotasRecarga_) / GOTAS_POR_ML;
     return r < 0 ? 0 : r;
   }
   float pctRestante() const { return mlRestantes() / GOTERO_CAPACIDAD_ML * 100.0f; }
-  void recargado() { gotasRecarga_ = gotasTotal; }
+  void recargado(unsigned long ahora) {
+    gotasRecarga_ = gotasTotal;
+    if (estado == EstadoCloro::SIN_CLORO) iniciarMezcla(ahora);
+  }
+  // Ocupado: R2 debe quedarse quieto (no se transfiere).
+  bool ocupado() const { return estado == EstadoCloro::MEZCLANDO || estado == EstadoCloro::DOSIFICANDO; }
+  unsigned long faltaMs(unsigned long ahora) const {
+    unsigned long d = ahora - desde_;
+    if (estado == EstadoCloro::MEZCLANDO) return d < MEZCLA_MS ? MEZCLA_MS - d : 0;
+    if (estado == EstadoCloro::CONTACTO) return d < CLORO_CONTACTO_MS ? CLORO_CONTACTO_MS - d : 0;
+    return 0;
+  }
 
-  // Tiempo de contacto cumplido desde la última dosis.
-  bool contactoListo(unsigned long ahora) const {
-    return !abierto && (!huboGoteo || ahora - ultimoCierre >= CLORO_CONTACTO_MS);
+  // Terminó de entrar agua a R2.
+  void aguaNueva(float litros, unsigned long ahora) {
+    if (litros > 0) litrosPendientes += litros;
+    if (litrosPendientes > 0) iniciarMezcla(ahora);
+    else if (estado == EstadoCloro::LLENANDO) estado = estadoPrevio_;  // no entró agua
   }
-  unsigned long contactoFaltaMs(unsigned long ahora) const {
-    if (abierto) return CLORO_CONTACTO_MS;
-    return contactoListo(ahora) ? 0 : CLORO_CONTACTO_MS - (ahora - ultimoCierre);
-  }
-  bool dosisFueraDeRango() const {
-    return dosisPct >= 0 && fabsf(dosisPct - 100.0f) > DOSIS_TOLERANCIA_PCT;
+  // Botón "Clorar todo R2" (por ejemplo, después de un corte de luz).
+  void clorarTodo(float litrosR2, unsigned long ahora) {
+    litrosPendientes = litrosR2;
+    if (litrosPendientes > 0) iniciarMezcla(ahora);
   }
 
-  // transfiriendo: la bomba R1→R2 está encendida. Devuelve el estado del relé.
-  bool actualizar(bool transfiriendo, unsigned long ahora) {
-    if (abierto) {
+  bool actualizar(float ph, bool transfiriendo, unsigned long ahora) {
+    if (goteoAbierto) {
       float g = (ahora - tUltimo_) / 60000.0f * GOTEO_GOTAS_MIN;
+      gotasAplicadas += g;
       gotasTotal += g;
-      gotasCiclo += g;
     }
     tUltimo_ = ahora;
-    bool quiere = transfiriendo && mlRestantes() > 0;
-    if (quiere && !abierto) gotasCiclo = 0;
-    if (!quiere && abierto) { ultimoCierre = ahora; huboGoteo = true; }
-    abierto = quiere;
-    return abierto;
-  }
 
-  // Al terminar una transferencia: compara lo que goteó con lo que hacía falta.
-  void cerrarCiclo(float litrosEntraron) {
-    float necesarias = litrosEntraron * CLORO_GOTAS_POR_LITRO;
-    dosisPct = necesarias > 0 ? gotasCiclo / necesarias * 100.0f : -1;
+    if (transfiriendo) {
+      if (estado != EstadoCloro::LLENANDO) estadoPrevio_ = estado;
+      estado = EstadoCloro::LLENANDO;
+    } else {
+      switch (estado) {
+        case EstadoCloro::MEZCLANDO:
+          if (ahora - desde_ >= MEZCLA_MS) calcularDosis(ph, ahora);
+          break;
+        case EstadoCloro::PH_FUERA:  // espera a que corrijan el pH
+          if (gotasPorLitro(ph) > 0) calcularDosis(ph, ahora);
+          break;
+        case EstadoCloro::DOSIFICANDO:
+          if (gotasAplicadas >= gotasObjetivo) {
+            litrosPendientes = 0;
+            dosis++;
+            estado = EstadoCloro::CONTACTO;
+            desde_ = ahora;
+          } else if (mlRestantes() <= 0) {
+            estado = EstadoCloro::SIN_CLORO;
+          }
+          break;
+        case EstadoCloro::CONTACTO:
+          if (ahora - desde_ >= CLORO_CONTACTO_MS) estado = EstadoCloro::LISTA;
+          break;
+        default:
+          break;
+      }
+    }
+    goteoAbierto = estado == EstadoCloro::DOSIFICANDO;
+    return goteoAbierto;
   }
 
  private:
-  unsigned long tUltimo_ = 0;
+  unsigned long desde_ = 0, tUltimo_ = 0;
   float gotasRecarga_ = 0;
+  EstadoCloro estadoPrevio_ = EstadoCloro::SIN_DATO;
+
+  void iniciarMezcla(unsigned long ahora) {
+    estado = EstadoCloro::MEZCLANDO;
+    desde_ = ahora;
+  }
+
+  void calcularDosis(float ph, unsigned long ahora) {
+    float g = gotasPorLitro(ph);
+    if (g < 0) { estado = EstadoCloro::PH_FUERA; return; }
+    gotasPorLitroUsadas = g;
+    phDosis = ph;
+    gotasObjetivo = litrosPendientes * g;
+    gotasAplicadas = 0;
+    if (mlRestantes() * GOTAS_POR_ML < gotasObjetivo) { estado = EstadoCloro::SIN_CLORO; return; }
+    estado = EstadoCloro::DOSIFICANDO;
+    desde_ = ahora;
+  }
 };
 
 // ---------- Alertas ----------
@@ -250,31 +379,30 @@ struct Diagnostico {
 };
 
 struct EstadoSistema {
-  bool r1Ok, r2Ok;
-  float r1, r2;            // %
-  int turbR2;              // 0/1/2
-  bool origen;
-  const ControlBomba* llenado;
+  bool r2Ok;
+  float r2;   // %
+  float ph;
+  bool r1Agua;
+  float ntuR1;
+  const ControlPurga* purga;
   const ControlBomba* transfer;
-  const Goteo* goteo;
-  unsigned long ahora;
+  const Cloracion* cloro;
 };
 
 inline Diagnostico diagnosticar(const EstadoSistema& s) {
-  if (!s.r1Ok) return {ROJO, "Falla sensor R1"};
+  EstadoCloro c = s.cloro->estado;
   if (!s.r2Ok) return {ROJO, "Falla sensor R2"};
-  if (s.llenado->falla != Falla::NINGUNA) return {ROJO, s.llenado->textoFalla()};
-  if (s.transfer->falla != Falla::NINGUNA) return {ROJO, s.transfer->textoFalla()};
-  if (s.r1 >= NIVEL_SEGURIDAD) return {ROJO, "R1: desborde"};
+  if (s.transfer->falla != Falla::NINGUNA) return {ROJO, textoFalla(s.transfer->falla)};
+  if (s.purga->falla) return {ROJO, "Purga sin efecto"};
   if (s.r2 >= NIVEL_SEGURIDAD) return {ROJO, "R2: desborde"};
   if (s.r2 <= NIVEL_CRITICO) return {ROJO, "R2 casi vacio"};
-  if (s.turbR2 == 2) return {ROJO, "R2 muy turbia"};
-  if (s.goteo->mlRestantes() <= 0) return {ROJO, "Sin cloro"};
-  if (s.turbR2 == 1) return {AMARILLO, "R2 turbia:filtro"};
-  if (s.goteo->pctRestante() < GOTERO_AVISO_PCT) return {AMARILLO, "Recargar cloro"};
-  if (s.goteo->dosisFueraDeRango()) return {AMARILLO, "Revisar goteo"};
-  if (!s.goteo->contactoListo(s.ahora)) return {AMARILLO, "Clorando:espere"};
-  if (!s.origen) return {AMARILLO, "Origen sin agua"};
+  if (c == EstadoCloro::SIN_CLORO) return {ROJO, "Sin cloro"};
+  if (c == EstadoCloro::PH_FUERA) return {AMARILLO, s.ph < PH_MIN ? "pH bajo:corregir" : "pH alto:corregir"};
+  if (s.cloro->pctRestante() < GOTERO_AVISO_PCT) return {AMARILLO, "Recargar cloro"};
+  if (s.purga->encendida || s.purga->estado != EstadoPurga::LIMPIO) return {AMARILLO, "Purgando lodo"};
+  if (!s.r1Agua) return {AMARILLO, "R1 sin agua"};
+  if (nivelSedimento(s.ntuR1) > 0) return {AMARILLO, "R1 con lodo"};
+  if (c != EstadoCloro::LISTA) return {AMARILLO, c == EstadoCloro::SIN_DATO ? "R2 sin clorar?" : textoCloro(c)};
   if (s.r2 <= R2_ENCENDER) return {AMARILLO, "R2 nivel bajo"};
   return {VERDE, "Agua lista"};
 }

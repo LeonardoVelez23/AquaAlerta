@@ -4,25 +4,30 @@
 sequía y uso responsable del agua).
 
 **Problema:** en las casas rurales el agua llega por horas y a veces turbia. Se
-guarda en aljibes o tanques donde se desborda, se acaba sin aviso, junta
-sedimento y se usa sin saber si está desinfectada.
+guarda en aljibes o tanques que juntan sedimento, y se usa sin saber si está
+desinfectada ni cuánto cloro ponerle.
 
 **Solución:** un ESP32 trata el agua en **dos reservorios**:
 
 ```
-Origen ──bomba llenado──► R1 SEDIMENTACIÓN ──bomba transferencia──► FILTRO ──► R2 AGUA TRATADA ──► uso
- flotador                 ultrasonido 1                                ▲        ultrasonido 2
-                          turbidez 1 (a la altura                gotero de      turbidez 2
-                          de la succión)                         cloro          (después del filtro)
+            R1 · SEDIMENTOS                                      R2 · AGUA TRATADA
+  sensor de sedimentos (fondo)                                  nivel (ultrasonido) + pH
+  flotador de nivel mínimo                                                 ▲
+       │                                                                   │
+       ├── bomba de PURGA ──► lodo al desagüe / riego             bomba dosificadora de cloro
+       │                                                                   │
+       └── (sin sedimentos) ── bomba de TRANSFERENCIA ──► FILTRO ──────────┘──► uso
 ```
 
-1. **R1 – sedimentación:** el agua entra y **reposa** para que la tierra baje al
-   fondo. Mientras reposa, no se saca agua.
-2. **Bomba + filtro:** cuando R1 ya reposó y R2 necesita agua, la bomba pasa el
-   agua clara de R1 por un **filtro**, que retiene los residuos que quedan.
-3. **R2 – cloración por goteo:** mientras entra agua a R2 se abre un **gotero de
-   cloro**, así la dosis es proporcional a los litros. Luego cuenta el
-   **tiempo de contacto** antes de marcar el agua como lista.
+1. **R1 – sedimentos:** un sensor de turbidez cerca del fondo mide **cuánto
+   sedimento hay**. Si hay, la **bomba de purga** lo saca por pulsos.
+2. **R1 → filtro → R2:** cuando R1 está **sin sedimentos**, la bomba de
+   transferencia pasa el agua por el **filtro**, que retiene los residuos que
+   quedan, hasta R2.
+3. **R2 – pH y cloro:** cuando termina de entrar el agua, espera a que se
+   mezcle, **mide el pH** y, según el pH y los **litros que entraron**, aplica
+   las **gotas de cloro** necesarias. Después cuenta el tiempo de contacto y
+   marca **"Agua lista"**.
 
 Avisa con semáforo, buzzer y LCD, y publica una página web en la red local, o
 en su **propia red WiFi** si en la casa no hay internet.
@@ -31,70 +36,86 @@ en su **propia red WiFi** si en la casa no hay internet.
 
 | Componente | Función | Pin ESP32 |
 |---|---|---|
-| JSN-SR04T (impermeable) en R1 · en Wokwi HC-SR04 `ultra` | Nivel R1 | TRIG 5 / ECHO 18 |
-| JSN-SR04T en R2 · en Wokwi HC-SR04 `ultra2` | Nivel R2 | TRIG 16 / ECHO 17 |
-| Sensor de turbidez SEN0189 en R1 · en Wokwi potenciómetro `turb` | ¿Ya sedimentó? | GPIO 35 |
-| Sensor de turbidez SEN0189 en R2 · en Wokwi potenciómetro `turb2` | ¿El filtro funciona? | GPIO 34 |
-| Flotador en el origen · en Wokwi interruptor deslizante | ¿Hay agua para llenar R1? | GPIO 19 |
-| Relé + bomba de llenado · en Wokwi LED azul | Origen → R1 | GPIO 23 |
+| Sensor de turbidez SEN0189 cerca del fondo de R1 · en Wokwi potenciómetro `turb` | Cantidad de sedimentos | GPIO 35 |
+| Flotador de nivel mínimo en R1 · en Wokwi interruptor deslizante | ¿R1 tiene agua? (protege las bombas) | GPIO 19 |
+| Relé + bomba de purga (fondo de R1) · en Wokwi LED azul | Saca el lodo | GPIO 23 |
 | Relé + bomba de transferencia + filtro · en Wokwi LED morado | R1 → filtro → R2 | GPIO 33 |
-| Relé + electroválvula de goteo o bomba dosificadora · en Wokwi LED blanco | Cloro en R2 | GPIO 13 |
+| JSN-SR04T (impermeable) en R2 · en Wokwi HC-SR04 `ultra` | Nivel y litros de R2 | TRIG 5 / ECHO 18 |
+| Sensor de pH (módulo PH-4502C + sonda) en R2 · en Wokwi potenciómetro `ph` | pH del agua | GPIO 34 |
+| Relé + bomba dosificadora peristáltica (o electroválvula de goteo) · en Wokwi LED blanco | Gotas de cloro | GPIO 13 |
 | LED verde / amarillo / rojo | Semáforo | 26 / 27 / 14 |
 | Buzzer | Alarma en rojo | GPIO 25 |
-| LCD 16x2 I2C | 5 pantallas: R1, R2, bombas, goteo, red | SDA 21 / SCL 22 |
+| LCD 16x2 I2C | 5 pantallas: R1, R2+pH, bombas, cloro, red | SDA 21 / SCL 22 |
 | Pulsador | Silencia 60 s y reinicia fallas | GPIO 4 |
 
 ## Cómo funciona cada etapa
 
-### 1. Llenado de R1 (origen → R1)
-- Llena R1 cuando baja del **25 %** y para al **90 %**.
-- No arranca si el origen está sin agua. Corta siempre al **95 %** (desborde).
-- Si en 1 min R1 no sube 2 %, da la falla "R1 no se llena".
+### 1. Sedimentos y purga en R1
 
-### 2. Sedimentación en R1
-- Cada vez que entra agua a R1, sea por la bomba o por otro lado (tanquero,
-  lluvia), el sistema lo detecta por la subida del nivel y **reinicia el
-  reposo**.
-- Tiempo de reposo: `SEDIMENTACION_MS`. En la simulación son 45 s; con agua real,
-  **medir** cuánto tarda en aclarar (normalmente 2 h o más).
-- Antes de transferir revisa:
-  - que R1 esté sobre el **20 %**, porque más abajo está el lodo;
-  - que la turbidez de R1 sea **≤ 50 NTU** (si sigue turbia, espera más).
+| Turbidez en el fondo | Sedimentos | Qué hace |
+|---|---|---|
+| < 50 NTU | pocos | R1 lista para pasar agua a R2 |
+| 50 – 200 NTU | medios | purga |
+| ≥ 200 NTU | muchos | purga |
 
-### 3. Transferencia (R1 → filtro → R2)
+- La purga va por **pulsos**: enciende la bomba 10 s, la apaga 15 s para que el
+  lodo se asiente, vuelve a medir y repite si hace falta. Termina cuando el
+  fondo baja de **20 NTU**. Así no se bota agua de más.
+- Si tras **6 pulsos** sigue turbio, da la falla **"Purga sin efecto"**: puede
+  que el agua esté turbia en todo el tanque (no es sedimento) o que la bomba
+  esté tapada.
+- Con el flotador abajo (R1 sin agua) no funciona ninguna bomba.
+- El agua de la purga se puede usar para riego. La página muestra cuántos
+  litros se usaron.
+- En la simulación los tiempos son cortos; con un reservorio real conviene
+  usar 30 s / 5 min y hasta 8 pulsos (`include/config.h`).
+
+### 2. Transferencia (R1 → filtro → R2)
 - Rellena R2 cuando baja del **50 %** y para al **90 %**.
-- No funciona mientras R1 se llena, sedimenta o está bajo. La página dice el motivo.
+- Solo funciona si R1 **no tiene sedimentos**, tiene agua y R2 no se está
+  clorando (R2 tiene que estar quieto para medir el pH).
 - Si con la bomba encendida R2 no sube, da la falla **"Filtro tapado?"**: hay
   que limpiar el filtro o revisar la bomba o la manguera.
-- La turbidez de R2 permite verificar el filtro: si R2 sale turbia, aparece
-  "R2 turbia:filtro".
+- Corta siempre al 95 % (desborde), también en modo manual.
 
-### 4. Cloración por goteo en R2
-- El gotero se abre **solo mientras la bomba de transferencia está encendida**.
-- **Calibración:** la dosis es de 2 gotas por litro de cloro doméstico
-  (hipoclorito 5–6 %, sin aroma). Si la bomba pasa 10 L/min, el gotero debe dar
-  **20 gotas/min**: contar las gotas de 1 min y ajustar la llave del gotero.
-  Poner el caudal real en `CAUDAL_TRANSFER_LPM`.
-- Al terminar cada transferencia compara las gotas aplicadas con las que hacían
-  falta según los litros que **midió** el sensor de R2. Si la diferencia pasa
-  ±20 %, aparece "Revisar goteo".
-- Lleva la cuenta del cloro que queda en la botella del gotero. Avisa
-  "Recargar cloro" bajo el 20 % y "Sin cloro" en rojo. Después de rellenar,
-  pulsar *Recargué el cloro* en la web.
-- **Tiempo de contacto:** después de clorar, R2 muestra "Clorando: espere" hasta
-  que pasan 30 min (60 s en la simulación). Luego cambia a **"Agua lista"**.
-- La página también da las gotas necesarias para clorar R2 a mano, por si el
-  gotero falla.
-- La dosis se cambia en `CLORO_GOTAS_POR_LITRO`. Hay que **confirmarla con la
-  guía del Ministerio de Salud** y el porcentaje de la etiqueta del cloro.
+### 3. pH y gotas de cloro en R2
+
+Cuando termina de entrar agua:
+
+1. **Mezcla:** espera 15 s (en real, 5 min) para que el pH se estabilice.
+2. **Mide el pH** y elige la dosis:
+
+   | pH | Gotas por litro | Por qué |
+   |---|---|---|
+   | menos de 6,5 | **no clora**, avisa "pH bajo: corregir" | agua ácida, corrosiva |
+   | 6,5 – 7,5 | **2** (normal) | el cloro funciona mejor |
+   | 7,5 – 8,0 | **2,5** (aumentada) | el cloro pierde algo de efecto |
+   | más de 8,0 | **no clora**, avisa "pH alto: corregir" | el cloro casi no desinfecta; más cloro no lo arregla |
+
+3. **Gotas = litros que entraron × gotas por litro.** Por ejemplo, 300 L con pH
+   7,2 → 600 gotas ≈ 30 ml.
+4. **Dosifica:** abre la bomba dosificadora el tiempo justo para esas gotas,
+   según el caudal `GOTEO_GOTAS_MIN`.
+5. **Contacto:** "Clorando: espere" durante 60 s (en real, 30 min) y luego
+   **"Agua lista"**.
+
+- Si el pH está fuera de rango, el sistema **espera**. Cuando se corrige el pH,
+  clora solo.
+- Lleva la cuenta del cloro que queda en la botella ("Recargar cloro" bajo
+  20 %, "Sin cloro" en rojo). Después de rellenar, pulsar *Recargué el cloro*.
+- El botón **Clorar todo R2** sirve, por ejemplo, después de un corte de luz:
+  calcula la dosis para todos los litros de R2.
+- **La tabla de dosis está en `include/config.h` y hay que validarla** con la
+  guía del Ministerio de Salud y el porcentaje que indica la etiqueta del cloro
+  (hipoclorito 5–6 %, sin aroma).
 
 ## Semáforo
 
 | Color | Cuándo |
 |---|---|
-| 🟢 Verde | "Agua lista": R2 con agua tratada y tiempo de contacto cumplido |
-| 🟡 Amarillo | R2 turbia, recargar cloro, revisar goteo, clorando (esperar), origen sin agua, R2 bajo 50 % |
-| 🔴 Rojo + buzzer | Falla de sensor de nivel, falla de bomba o "Filtro tapado?", desborde de R1 o R2 (≥ 95 %), R2 casi vacío (≤ 10 %), R2 muy turbia, sin cloro |
+| 🟢 Verde | "Agua lista": R2 clorada y con el tiempo de contacto cumplido |
+| 🟡 Amarillo | pH bajo/alto: corregir, recargar cloro, purgando lodo, R1 sin agua, R1 con lodo, midiendo pH, aplicando cloro, clorando: espere, R2 nivel bajo |
+| 🔴 Rojo + buzzer | Falla del sensor de R2, "Filtro tapado?", "Purga sin efecto", R2 ≥ 95 %, R2 ≤ 10 %, sin cloro |
 
 ## Página web
 
@@ -102,82 +123,83 @@ Al arrancar intenta conectarse al WiFi de `include/secrets.h`. Si no puede en
 10 s, crea la red **AquaAlerta** (contraseña en `secrets.h`) y la página queda en
 <http://192.168.4.1>. La IP se ve en el LCD. No usa librerías de internet.
 
-- Los dos reservorios animados (R1 con lodo en el fondo y línea de succión
-  mínima), y los íconos bomba → filtro → goteo, que se encienden cuando
-  trabajan.
-- Estado de cada bomba, del gotero y de la sedimentación (cuánto falta).
-- Cloración: gotas del último llenado, dosis aplicada (%), cloro restante y
-  gotas para clorar a mano.
-- Gráfico de los últimos 30 min: nivel de R1 y R2, franjas de transferencia y
-  de goteo.
-- Control con PIN: llenado y transferencia (automático / encender / apagar),
-  reiniciar fallas y *Recargué el cloro*.
+- R1 con la capa de lodo según los sedimentos, R2 con su nivel, y los íconos
+  purga → bomba → filtro, que se encienden cuando trabajan.
+- Barra de pH (0–14) con la zona verde, la tabla de dosis, las gotas del agua
+  por clorar, la última dosis (pH, gotas/L, gotas, ml) y el cloro restante.
+- Gráfico de los últimos 30 min: nivel de R2, sedimentos de R1, pH, y franjas
+  de purga, transferencia y goteo.
+- Control con PIN: purga y transferencia (automático / encender / apagar),
+  reiniciar fallas, *Clorar todo R2* y *Recargué el cloro*.
 - API JSON: `GET /api/estado`, `GET /api/historial`, `POST /api/control`
-  (`accion=l_auto|l_on|l_off|t_auto|t_on|t_off|reset|recarga`, `pin=…`).
+  (`accion=p_auto|p_on|p_off|t_auto|t_on|t_off|reset|clorar|recarga`, `pin=…`).
 
 ## Cómo se mide (evaluación)
 
 | Métrica | Cómo obtenerla |
 |---|---|
-| **Error del nivel** | Llenar cada reservorio a 5–6 alturas, medir con regla y comparar con la página. Reportar error promedio y máximo. |
-| **Reducción de turbidez** | La página muestra *Turbidez R1 → R2* (ej. 180 → 12 NTU = −93 %). Probar con agua con 1, 2 y 5 cucharadas de tierra por litro. |
-| **Precisión de la dosis de cloro** | *Dosis aplicada* (%) de cada ciclo: gotas reales vs. 2 gotas × litros medidos. Lo ideal es entre 80 y 120 %. Con un kit de cloro residual (piscina) se puede verificar en R2. |
-| **Litros no desperdiciados** | Línea base sin el sistema: duración de un desborde × caudal. Ponerla en `LITROS_DESBORDE_LINEA_BASE`; la página la multiplica por los llenados sin desborde. |
+| **Eficacia de la purga** | La página muestra la turbidez del fondo antes y después de cada purga (ej. 180 → 15 NTU), y los litros usados. Probar con agua con 1, 2 y 5 cucharadas de tierra por litro. |
+| **Error del nivel de R2** | Llenar R2 a 5–6 alturas, medir con regla y comparar con la página. Reportar error promedio y máximo. |
+| **Exactitud del pH** | Medir el mismo vaso con el sensor y con tiras de pH o un pH-metro de referencia. |
+| **Dosis de cloro** | Comparar las gotas calculadas con las que sacó la bomba (medir los ml en una probeta). Con un kit de cloro residual (de piscina) se puede verificar el cloro en R2. |
 | **Tiempo de respuesta** | Lo mide el ESP32: desde que enciende la transferencia hasta que R2 sube 2 %. |
 
-> **Importante:** el sensor de turbidez indica si el agua está **turbia**, no si
-> es **potable**. No detecta bacterias, cloro ni metales. El cloro desinfecta
-> bien solo agua **clara**: por eso primero se sedimenta y se filtra.
+> **Importante:** el sensor de turbidez mide **sedimentos y turbidez**, y el de
+> pH mide la **acidez**. Ninguno detecta bacterias ni metales. El sistema
+> ayuda a desinfectar con la dosis correcta, pero no reemplaza un análisis de
+> laboratorio del agua.
 
 ## Simular en Wokwi (Antigravity / VS Code)
 
 1. `pio run`
 2. `F1` → **Wokwi: Start Simulator**
 3. Abrir <http://localhost:8180> (Wokwi reenvía el puerto 80 del ESP32).
-4. Recorrido sugerido. Al inicio R1 está al ~63 % y R2 al ~27 %:
-   - Durante 45 s R1 está **sedimentando**: la transferencia espera.
-   - Luego se encienden la **transferencia (LED morado)** y el **goteo (LED
-     blanco)**. Como en la simulación el agua no sube sola, baja poco a poco la
-     distancia de `ultra2` (R2 se llena). Si no lo haces en 1 min, aparece
-     "Filtro tapado?".
-   - Con `ultra2` en ≤ 32 cm (R2 ≥ 90 %) la transferencia y el
-     goteo se apagan. Se ve la dosis y empieza el tiempo de contacto ("Clorando:
-     espere"). A los 60 s el estado cambia a **"Agua lista"** (verde).
-   - Sube la distancia de `ultra` (R1) a ~105 cm → R1 baja al 15 % → se enciende
-     el **llenado (LED azul)**. Al bajarla otra vez (llenando), el reposo se
-     reinicia.
-   - Potenciómetro `turb` hacia abajo → R1 turbia → la transferencia espera.
-     Potenciómetro `turb2` hacia abajo → R2 turbia → "R2 turbia:filtro".
-   - Interruptor deslizante → "Origen sin agua".
+4. Recorrido sugerido. Al inicio R1 está sin sedimentos, R2 al ~27 % y el pH ≈ 7,1:
+   - Arranca la **transferencia (LED morado)**. Como en la simulación el agua
+     no sube sola, baja poco a poco la distancia de `ultra` (R2 se llena). Con
+     ≤ 32 cm (90 %) se apaga.
+   - R2: **"Midiendo pH"** 15 s → **"Aplicando cloro" (LED blanco)** con las
+     gotas calculadas → **"Clorando: espere"** 60 s → **"Agua lista"** (verde).
+   - Potenciómetro `ph` casi al máximo → pH bajo; casi al mínimo → pH alto: no
+     clora y pide corregir. Llévalo al centro y clora solo.
+   - Potenciómetro `turb` hacia abajo → sedimentos → se detiene la
+     transferencia y arranca la **purga (LED azul)** por pulsos. Súbelo durante
+     una pausa (agua limpia) y la purga termina. Si no lo subes, tras 6 pulsos
+     aparece "Purga sin efecto".
+   - Interruptor deslizante → "R1 sin agua": ninguna bomba arranca.
    - PIN por defecto: `1234`.
 
 ## Armado físico
 
-- **Succión de la bomba de transferencia:** a 10–15 cm **sobre el fondo** de R1
-  (nunca en el fondo), para no levantar el lodo. Ese nivel corresponde a
-  `R1_NIVEL_MIN_TRANSFER`. Purgar el lodo de R1 de vez en cuando con una llave
-  en el fondo.
-- **Filtro** en la manguera entre la bomba y R2: cartucho de sedimentos
-  (50 → 5 micras) o filtro casero de grava, arena y algodón. Limpiarlo o
-  cambiarlo cuando aparezca "Filtro tapado?".
-- **Gotero:** botella con cloro y llave reguladora, con una electroválvula de
-  12 V normalmente cerrada que maneja el relé del GPIO 13, o una bomba
-  peristáltica pequeña. Que gotee sobre el chorro de entrada a R2 para que se
-  mezcle.
-- **JSN-SR04T** en cada tapa, centrado y lejos de la entrada de agua. Zona ciega
-  de ~20–25 cm (`distLlenoCm`). Medir `distVacioCm` con cada reservorio vacío.
-  **ECHO a 5 V:** usar un divisor de 1 kΩ / 2 kΩ antes de cada GPIO.
-- **Turbidez:** salida de hasta 4,5 V → divisor 10 kΩ / 20 kΩ. El sensor de R1
-  va a la altura de la succión. La parte superior del sensor no es sumergible.
-- **Bombas y válvula con fuente propia**, GND común con el ESP32, relés con
-  optoacoplador y diodo. Si son activo-bajo: `RELE_ACTIVO_ALTO = false`.
+- **Sensor de sedimentos (turbidez)** en R1, a ~5 cm del fondo y al lado de la
+  succión de la purga. La parte superior del sensor no es sumergible: montarlo
+  en un tubo sellado con la punta hacia abajo. Salida de hasta 4,5 V → divisor
+  10 kΩ / 20 kΩ.
+- **Bomba de purga** con la succión en el punto más bajo del fondo (ideal: fondo
+  en pendiente o cónico). La salida va a desagüe o a riego.
+- **Bomba de transferencia** con la succión a 10–15 cm **sobre el fondo**, para
+  no tomar lodo. Instalar el **filtro** en la manguera hacia R2 (cartucho de
+  sedimentos 50 → 5 micras, o filtro casero de grava, arena y algodón).
+- **Flotador** en R1 a la altura de la succión de transferencia: si el agua baja
+  de ahí, ninguna bomba funciona.
+- **Sensor de pH:** sonda siempre húmeda (guardarla en solución de
+  almacenamiento), **calibrar con buffers pH 7 y pH 4** y anotar los voltajes en
+  `PH_V7` y `PH_V4`. Salida Po → divisor 10 kΩ / 20 kΩ → GPIO 34. Medir lejos de
+  la entrada del cloro.
+- **Dosificador:** bomba peristáltica de 12 V (~30 ml/min) con la manguera en la
+  botella de cloro. Medir cuántos ml saca en 1 min y poner `ml × 20` en
+  `GOTEO_GOTAS_MIN`. Que gotee sobre la entrada de agua de R2 para que se mezcle.
+- **JSN-SR04T** en la tapa de R2, centrado. Zona ciega de ~20–25 cm
+  (`R2_DIST_LLENO_CM`). **ECHO a 5 V** → divisor 1 kΩ / 2 kΩ.
+- **Bombas con fuente propia**, GND común con el ESP32, relés con optoacoplador
+  y diodo. Si son activo-bajo: `RELE_ACTIVO_ALTO = false`.
 - Cambiar `AP_PASSWORD` y `PIN_WEB` en `include/secrets.h`.
 
 ## Estructura
 
 ```
-include/config.h    pines, reservorios, umbrales, tiempos y dosis de cloro
-include/control.h   lógica pura: bombas, sedimentación, goteo y semáforo
+include/config.h    pines, umbrales de sedimentos, tabla pH → gotas, tiempos
+include/control.h   lógica pura: purga, transferencia, cloración por pH y semáforo
 include/pagina.h    página web (HTML/CSS/JS embebido)
 src/main.cpp        sensores, relés, LCD, WiFi/AP y servidor web
 diagram.json        circuito de Wokwi

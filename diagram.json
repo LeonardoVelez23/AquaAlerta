@@ -16,7 +16,7 @@
       "top": -140,
       "left": -200,
       "attrs": {
-        "distance": "60"
+        "distance": "80"
       }
     },
     {
@@ -30,11 +30,11 @@
     },
     {
       "type": "wokwi-potentiometer",
-      "id": "turb2",
+      "id": "ph",
       "top": 270,
       "left": -330,
       "attrs": {
-        "value": "1023"
+        "value": "512"
       }
     },
     {
@@ -79,7 +79,7 @@
       "left": 330,
       "attrs": {
         "color": "blue",
-        "label": "Llenado R1"
+        "label": "Purga lodo R1"
       }
     },
     {
@@ -205,15 +205,6 @@
       }
     },
     {
-      "type": "wokwi-hc-sr04",
-      "id": "ultra2",
-      "top": -140,
-      "left": -420,
-      "attrs": {
-        "distance": "80"
-      }
-    },
-    {
       "type": "wokwi-relay-module",
       "id": "releG",
       "top": 580,
@@ -297,19 +288,19 @@
       []
     ],
     [
-      "turb2:VCC",
+      "ph:VCC",
       "esp:3V3",
       "red",
       []
     ],
     [
-      "turb2:GND",
+      "ph:GND",
       "esp:GND.1",
       "black",
       []
     ],
     [
-      "turb2:SIG",
+      "ph:SIG",
       "esp:34",
       "green",
       []
@@ -540,30 +531,6 @@
       "ledF:C",
       "esp:GND.2",
       "black",
-      []
-    ],
-    [
-      "ultra2:VCC",
-      "esp:5V",
-      "red",
-      []
-    ],
-    [
-      "ultra2:GND",
-      "esp:GND.1",
-      "black",
-      []
-    ],
-    [
-      "ultra2:TRIG",
-      "esp:16",
-      "orange",
-      []
-    ],
-    [
-      "ultra2:ECHO",
-      "esp:17",
-      "yellow",
       []
     ],
     [
