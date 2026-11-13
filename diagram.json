@@ -230,6 +230,15 @@
       "attrs": {
         "value": "220"
       }
+    },
+    {
+      "type": "wokwi-potentiometer",
+      "id": "turb2",
+      "top": 370,
+      "left": -330,
+      "attrs": {
+        "value": "1023"
+      }
     }
   ],
   "connections": [
@@ -573,6 +582,24 @@
       "ledG:C",
       "esp:GND.2",
       "black",
+      []
+    ],
+    [
+      "turb2:VCC",
+      "esp:3V3",
+      "red",
+      []
+    ],
+    [
+      "turb2:GND",
+      "esp:GND.1",
+      "black",
+      []
+    ],
+    [
+      "turb2:SIG",
+      "esp:VP",
+      "green",
       []
     ]
   ],

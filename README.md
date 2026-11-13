@@ -42,6 +42,7 @@ en su **propia red WiFi** si en la casa no hay internet.
 | Relé + bomba de transferencia + filtro · en Wokwi LED morado | R1 → filtro → R2 | GPIO 33 |
 | JSN-SR04T (impermeable) en R2 · en Wokwi HC-SR04 `ultra` | Nivel y litros de R2 | TRIG 5 / ECHO 18 |
 | Sensor de pH (módulo PH-4502C + sonda) en R2 · en Wokwi potenciómetro `ph` | pH del agua | GPIO 34 |
+| Sensor de turbidez SEN0189 en R2, donde cae el agua filtrada · en Wokwi potenciómetro `turb2` | ¿El filtro deja el agua clara? | GPIO 36 (VP) |
 | Relé + bomba dosificadora peristáltica (o electroválvula de goteo) · en Wokwi LED blanco | Gotas de cloro | GPIO 13 |
 | LED verde / amarillo / rojo | Semáforo | 26 / 27 / 14 |
 | Buzzer | Alarma en rojo | GPIO 25 |
@@ -77,13 +78,20 @@ en su **propia red WiFi** si en la casa no hay internet.
 - Si con la bomba encendida R2 no sube, da la falla **"Filtro tapado?"**: hay
   que limpiar el filtro o revisar la bomba o la manguera.
 - Corta siempre al 95 % (desborde), también en modo manual.
+- Si con la bomba encendida el agua de R2 sigue **turbia (> 5 NTU) por más de
+  20 s** (en real, 3 min), apaga la bomba con la falla **"Filtro no limpia"**:
+  el filtro está roto, saturado o mal colocado.
 
 ### 3. pH y gotas de cloro en R2
 
 Cuando termina de entrar agua:
 
 1. **Mezcla:** espera 15 s (en real, 5 min) para que el pH se estabilice.
-2. **Mide el pH.** El pH decide **si se puede clorar**; la dosis es la del MSP:
+2. **Revisa la turbidez de R2.** Si pasa de **5 NTU** (OMS), **no clora** y
+   avisa "R2 turbia: filtro". El MSP pide filtrar el agua turbia antes de
+   clorar, porque el cloro no desinfecta bien el agua turbia. Clora sola en
+   cuanto el agua se aclara.
+3. **Mide el pH.** El pH decide **si se puede clorar**; la dosis es la del MSP:
 
    | pH | ¿Clora? | Por qué |
    |---|---|---|
@@ -92,12 +100,12 @@ Cuando termina de entrar agua:
    | 7,5 – 8,0 | sí, 1 gota/L | funciona, algo menos eficaz |
    | más de 8,0 | **no**, avisa "pH alto: corregir" | la OMS pide pH < 8 para desinfectar; echar más cloro no lo arregla |
 
-3. **Gotas = litros que entraron × 1 gota/L** (cloro comercial al 5 %). Por
+4. **Gotas = litros que entraron × 1 gota/L** (cloro comercial al 5 %). Por
    ejemplo, 300 L → 300 gotas ≈ 15 ml. Es la misma proporción de la tabla del
    MSP: 20 L → 20 gotas.
-4. **Dosifica:** abre la bomba dosificadora el tiempo justo para esas gotas,
+5. **Dosifica:** abre la bomba dosificadora el tiempo justo para esas gotas,
    según el caudal `GOTEO_GOTAS_MIN`.
-5. **Contacto:** "Clorando: espere" durante 60 s (en real, **30 min**, como
+6. **Contacto:** "Clorando: espere" durante 60 s (en real, **30 min**, como
    indica el MSP) y luego **"Agua lista"**.
 
 - Si el pH está sobre 8, el sistema **espera**. Cuando se corrige el pH, clora
@@ -118,13 +126,30 @@ Cuando termina de entrar agua:
 - OMS, *Guías para la calidad del agua potable*: cloro libre residual ≥ 0,5 mg/L
   tras 30 min a **pH < 8,0**; turbiedad < 5 NTU; máximo 5 mg/L por sabor.
 
+### Límite del sensor de turbidez (importante para la evaluación)
+
+El SEN0189 es un sensor barato pensado para agua bastante turbia. Cerca del
+agua limpia su curva cambia ~3,7 NTU por milivoltio, así que **no distingue de
+forma fiable 0 de 5 NTU**: detecta bien el agua **visiblemente turbia** y un
+filtro que falla, pero no certifica el límite de la OMS. Para eso:
+
+1. **Calibrar:** con agua embotellada en R2, anotar el voltaje en
+   `TURB_R2_V_LIMPIA`; ese voltaje queda como 0 NTU.
+2. **Verificar con un tubo de turbidez:** es un tubo transparente de ~60 cm con
+   un disco blanco y negro en el fondo (se puede hacer con un tubo de PVC
+   transparente). Se llena con agua de R2 mirando desde arriba: si se ve el
+   disco con el tubo lleno, el agua está bajo ~5 NTU. Es el método de campo que
+   usan programas de agua de la OMS y ONG.
+3. Para una medida exacta, se necesita un turbidímetro de laboratorio. Se puede
+   pedir a un laboratorio de la universidad o a la empresa de agua.
+
 ## Semáforo
 
 | Color | Cuándo |
 |---|---|
 | 🟢 Verde | "Agua lista": R2 clorada y con el tiempo de contacto cumplido |
-| 🟡 Amarillo | pH alto: corregir, pH bajo (ácido), recargar cloro, purgando lodo, R1 sin agua, R1 con lodo, midiendo pH, aplicando cloro, clorando: espere, R2 nivel bajo |
-| 🔴 Rojo + buzzer | Falla del sensor de R2, "Filtro tapado?", "Purga sin efecto", R2 ≥ 95 %, R2 ≤ 10 %, sin cloro |
+| 🟡 Amarillo | R2 turbia: filtro, pH alto: corregir, pH bajo (ácido), recargar cloro, purgando lodo, R1 sin agua, R1 con lodo, midiendo pH, aplicando cloro, clorando: espere, R2 nivel bajo |
+| 🔴 Rojo + buzzer | Falla del sensor de R2, "Filtro tapado?", "Filtro no limpia", "Purga sin efecto", R2 ≥ 95 %, R2 ≤ 10 %, sin cloro |
 
 ## Página web
 
@@ -136,7 +161,8 @@ Al arrancar intenta conectarse al WiFi de `include/secrets.h`. Si no puede en
   purga → bomba → filtro, que se encienden cuando trabajan.
 - Barra de pH (0–14) con la zona verde, la tabla de pH, las gotas del agua
   por clorar, la última dosis (pH, gotas/L, gotas, ml) y el cloro restante.
-- Gráfico de los últimos 30 min: nivel de R2, sedimentos de R1, pH, y franjas
+- Turbidez de R2 (apta para clorar o no) y turbidez R1 → R2, que muestra cuánto limpia el filtro.
+- Gráfico de los últimos 30 min: nivel de R2, sedimentos de R1, turbidez de R2, pH, y franjas
   de purga, transferencia y goteo.
 - Control con PIN: purga y transferencia (automático / encender / apagar),
   reiniciar fallas, *Clorar todo R2* y *Recargué el cloro*.
@@ -148,6 +174,7 @@ Al arrancar intenta conectarse al WiFi de `include/secrets.h`. Si no puede en
 | Métrica | Cómo obtenerla |
 |---|---|
 | **Eficacia de la purga** | La página muestra la turbidez del fondo antes y después de cada purga (ej. 180 → 15 NTU), y los litros usados. Probar con agua con 1, 2 y 5 cucharadas de tierra por litro. |
+| **Eficacia del filtro** | Turbidez R1 → R2 en la página. Verificar el agua de R2 con el tubo de turbidez (¿se ve el disco con el tubo lleno?). |
 | **Error del nivel de R2** | Llenar R2 a 5–6 alturas, medir con regla y comparar con la página. Reportar error promedio y máximo. |
 | **Exactitud del pH** | Medir el mismo vaso con el sensor y con tiras de pH o un pH-metro de referencia. |
 | **Dosis de cloro** | Comparar las gotas calculadas con las que sacó la bomba (medir los ml en una probeta). Con un kit de cloro residual (de piscina) se puede verificar el cloro en R2. |
@@ -175,6 +202,9 @@ Al arrancar intenta conectarse al WiFi de `include/secrets.h`. Si no puede en
      transferencia y arranca la **purga (LED azul)** por pulsos. Súbelo durante
      una pausa (agua limpia) y la purga termina. Si no lo subes, tras 6 pulsos
      aparece "Purga sin efecto".
+   - Potenciómetro `turb2` hacia abajo → R2 turbia: no clora ("R2 turbia:
+     filtro"). Si lo haces con la transferencia encendida, a los 20 s aparece
+     "Filtro no limpia".
    - Interruptor deslizante → "R1 sin agua": ninguna bomba arranca.
    - PIN por defecto: `1234`.
 
@@ -191,6 +221,9 @@ Al arrancar intenta conectarse al WiFi de `include/secrets.h`. Si no puede en
   sedimentos 50 → 5 micras, o filtro casero de grava, arena y algodón).
 - **Flotador** en R1 a la altura de la succión de transferencia: si el agua baja
   de ahí, ninguna bomba funciona.
+- **Sensor de turbidez de R2** donde cae el agua del filtro, sumergido sin
+  tocar el fondo, protegido de la luz directa (la luz altera la lectura).
+  Divisor 10 kΩ / 20 kΩ → GPIO 36.
 - **Sensor de pH:** sonda siempre húmeda (guardarla en solución de
   almacenamiento), **calibrar con buffers pH 7 y pH 4** y anotar los voltajes en
   `PH_V7` y `PH_V4`. Salida Po → divisor 10 kΩ / 20 kΩ → GPIO 34. Medir lejos de

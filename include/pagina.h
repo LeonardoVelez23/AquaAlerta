@@ -51,7 +51,7 @@ table{border-collapse:collapse;font-size:.85rem;margin-top:6px}td,th{padding:3px
    <span class="ic" id="icF">🧽</span>filtro</div>
   <div class="tq"><h3>R2 · Agua tratada</h3>
    <div class="tanque"><div class="agua" id="a2" style="height:0"></div><div class="pct" id="p2">–</div></div>
-   <p><b id="l2">–</b> L · pH <b id="ph">–</b><br><span id="s2">–</span></p></div>
+   <p><b id="l2">–</b> L · pH <b id="ph">–</b> · <span id="n2">–</span> NTU<br><span id="s2">–</span></p></div>
  </div></div>
 
  <div class="kpis">
@@ -64,6 +64,7 @@ table{border-collapse:collapse;font-size:.85rem;margin-top:6px}td,th{padding:3px
   <div class="barra"><i id="phMarca" style="left:50%"></i></div>
   <small style="display:flex;justify-content:space-between"><span>0 ácido</span><span>7 neutro</span><span>14 básico</span></small>
   <div class="kpis" style="margin-top:12px">
+   <div class="kpi"><span>Turbidez R2 (después del filtro)</span><b id="tB">–</b><span id="tT"></span></div>
    <div class="kpi"><span>pH actual</span><b id="phB">–</b><span id="phT"></span></div>
    <div class="kpi"><span>Agua por clorar</span><b id="cPend">–</b><span id="cPendT"></span></div>
    <div class="kpi"><span>Última dosis</span><b id="cDosis">–</b><span id="cDosisT"></span></div>
@@ -76,11 +77,12 @@ table{border-collapse:collapse;font-size:.85rem;margin-top:6px}td,th{padding:3px
    <tr><td id="t4"></td><td>no</td><td>el cloro no desinfecta bien: corregir pH</td></tr></table>
   <div class="ctrl"><button onclick="enviar('clorar')">Clorar todo R2</button>
    <button class="sec" onclick="enviar('recarga')">Recargué el cloro</button></div>
-  <small>Dosis del MSP Ecuador (Guía de Agua Segura): cloro comercial al 5 %, 1 gota por litro y esperar 30 min.
+  <small>Antes de clorar se exige agua clara: menos de 5 NTU (OMS; ideal menos de 1 NTU). Con R2 turbia no se clora: hay que revisar el filtro.<br>
+   Dosis del MSP Ecuador (Guía de Agua Segura): cloro comercial al 5 %, 1 gota por litro y esperar 30 min.
    La OMS pide pH menor a 8 para que el cloro desinfecte; con pH alto se corrige el pH, no se echa más cloro.</small></div>
 
  <div class="card"><b>Últimos 30 min</b> <small>— <span style="color:var(--agua)">nivel R2 %</span> ·
-  <span style="color:#a07a4a">- - sedimentos R1</span> · <span style="color:#8b5cf6">pH</span> ·
+  <span style="color:#a07a4a">- - sedimentos R1</span> · <span style="color:#1f9d55">·· turbidez R2</span> · <span style="color:#8b5cf6">pH</span> ·
   franjas: <span style="color:#a07a4a">purga</span>, <span style="color:var(--agua)">transferencia</span>, <span style="color:#8b5cf6">goteo</span></small>
   <canvas id="graf"></canvas></div>
 
@@ -100,6 +102,7 @@ table{border-collapse:collapse;font-size:.85rem;margin-top:6px}td,th{padding:3px
   <div class="kpi"><span>Purgas de lodo</span><b id="xP">–</b><span id="xPt"></span></div>
   <div class="kpi"><span>Agua usada en purga</span><b id="xPl">–</b><span>reutilizable para riego</span></div>
   <div class="kpi"><span>Litros tratados (a R2)</span><b id="xT">–</b></div>
+  <div class="kpi"><span>Turbidez R1 → R2 (filtro)</span><b id="xF">–</b><span id="xFt"></span></div>
   <div class="kpi"><span>Dosis aplicadas</span><b id="xD">–</b><span id="xDt"></span></div>
   <div class="kpi"><span>Respuesta transferencia</span><b id="xR">–</b></div>
  </div></div>
@@ -122,7 +125,12 @@ async function estado(){
    P.estado=='PAUSA'?'Asentando '+P.pulso+'/'+P.max_pulsos:(r1.disponible?'✔ sin sedimentos, lista':r1.motivo);
   // R2
   $('a2').style.height=(r2.ok?r2.nivel:0)+'%';$('p2').textContent=r2.ok?r2.nivel.toFixed(0)+'%':'¿?';
-  $('l2').textContent=r2.ok?r2.litros:'–';$('ph').textContent=r2.ph.toFixed(1);
+  $('l2').textContent=r2.ok?r2.litros:'–';$('ph').textContent=r2.ph.toFixed(1);$('n2').textContent=r2.ntu.toFixed(1);
+  $('a2').style.background=r2.clara?'':'#7d8f6a';
+  $('tB').textContent=r2.ntu.toFixed(1)+' NTU';
+  $('tT').textContent=!r2.clara?'⚠ turbia: no se clora, revisar filtro':(r2.ntu<=k.turb_ideal?'✔ muy clara':'✔ apta para clorar');
+  $('xF').textContent=r1.ntu+' → '+r2.ntu.toFixed(1)+' NTU';
+  $('xFt').textContent=r1.ntu>0?'−'+Math.max(0,Math.round((r1.ntu-r2.ntu)/r1.ntu*100))+' %':'';
   $('s2').textContent=C.estado+(C.falta_s>0?' · '+C.falta_s+' s':'');
   $('icP').classList.toggle('on',P.on);$('icB').classList.toggle('on',T.on);$('icF').classList.toggle('on',T.on);
   // bombas
@@ -162,6 +170,7 @@ async function historial(){
    h.datos.forEach((p,i)=>{const y=H-f(p)*H;i?x.lineTo(px(i),y):x.moveTo(px(i),y)});x.stroke();x.setLineDash([])};
   linea(p=>p[0]/100,'#2f8fd8',[]);
   linea(p=>Math.min(p[1],300)/300,'#a07a4a',[6,4]);
+  linea(p=>Math.min(p[4],300)/300,'#1f9d55',[2,3]);
   linea(p=>p[2]/140,'#8b5cf6',[]);
  }catch(e){}
 }

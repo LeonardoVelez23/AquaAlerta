@@ -150,13 +150,14 @@ class ControlPurga {
 };
 
 // ---------- Bomba de transferencia (R1 → filtro → R2) ----------
-enum class Falla { NINGUNA, SIN_SUBIR, TIEMPO_MAX };
+enum class Falla { NINGUNA, SIN_SUBIR, TIEMPO_MAX, AGUA_TURBIA };
 
 inline const char* textoFalla(Falla f) {
   switch (f) {
-    case Falla::SIN_SUBIR:  return "Filtro tapado?";
-    case Falla::TIEMPO_MAX: return "Transf. t. max";
-    default:                return "";
+    case Falla::SIN_SUBIR:   return "Filtro tapado?";
+    case Falla::TIEMPO_MAX:  return "Transf. t. max";
+    case Falla::AGUA_TURBIA: return "Filtro no limpia";
+    default:                 return "";
   }
 }
 
@@ -165,6 +166,7 @@ struct EntradaBomba {
   bool nivelOk;
   bool origen;           // R1 puede entregar agua
   const char* porQueNo;  // motivo cuando origen == false
+  bool aguaTurbia;       // la turbidez de R2 supera TURB_R2_MAX_CLORO
   unsigned long ahora;
 };
 
@@ -237,10 +239,18 @@ class ControlBomba {
     // R2 no sube: filtro tapado, manguera doblada o bomba en seco.
     if (esperandoRespuesta_ && t >= BOMBA_SIN_SUBIR_MS) falla = Falla::SIN_SUBIR;
     if (t >= BOMBA_MAX_MS) falla = Falla::TIEMPO_MAX;
+    // El agua sigue llegando turbia: el filtro no está reteniendo.
+    if (!e.aguaTurbia) hayTurbia_ = false;
+    else if (!hayTurbia_) { hayTurbia_ = true; turbiaDesde_ = e.ahora; }
+    else if (e.ahora - turbiaDesde_ >= FILTRO_TURBIO_MS) falla = Falla::AGUA_TURBIA;
   }
+
+  bool hayTurbia_ = false;
+  unsigned long turbiaDesde_ = 0;
 
   void encender(const EntradaBomba& e) {
     encendida = true;
+    hayTurbia_ = false;
     desde_ = e.ahora;
     nivelInicial_ = e.nivel;
     esperandoRespuesta_ = true;
@@ -260,13 +270,17 @@ class ControlBomba {
 // ---------- Cloración de R2 según el pH ----------
 //  agua nueva → MEZCLANDO (espera) → mide pH → DOSIFICANDO (gotero) → CONTACTO → LISTA
 //                                       └─ pH fuera de rango → PH_FUERA (no clora, avisa)
-enum class EstadoCloro { SIN_DATO, LLENANDO, MEZCLANDO, PH_FUERA, SIN_CLORO, DOSIFICANDO, CONTACTO, LISTA };
+enum class EstadoCloro { SIN_DATO, LLENANDO, MEZCLANDO, TURBIA, PH_FUERA, SIN_CLORO, DOSIFICANDO, CONTACTO, LISTA };
+
+// Agua apta para clorar: clara (OMS < 5 NTU).
+inline bool claraParaClorar(float ntu) { return !isnan(ntu) && ntu <= TURB_R2_MAX_CLORO; }
 
 inline const char* textoCloro(EstadoCloro e) {
   switch (e) {
     case EstadoCloro::SIN_DATO:    return "Sin registro";
     case EstadoCloro::LLENANDO:    return "Entra agua";
     case EstadoCloro::MEZCLANDO:   return "Midiendo pH";
+    case EstadoCloro::TURBIA:      return "R2 turbia";
     case EstadoCloro::PH_FUERA:    return "pH fuera rango";
     case EstadoCloro::SIN_CLORO:   return "Falta cloro";
     case EstadoCloro::DOSIFICANDO: return "Aplicando cloro";
@@ -315,7 +329,7 @@ class Cloracion {
     if (litrosPendientes > 0) iniciarMezcla(ahora);
   }
 
-  bool actualizar(float ph, bool transfiriendo, unsigned long ahora) {
+  bool actualizar(float ph, float ntu, bool transfiriendo, unsigned long ahora) {
     if (goteoAbierto) {
       float g = (ahora - tUltimo_) / 60000.0f * GOTEO_GOTAS_MIN;
       gotasAplicadas += g;
@@ -329,10 +343,11 @@ class Cloracion {
     } else {
       switch (estado) {
         case EstadoCloro::MEZCLANDO:
-          if (ahora - desde_ >= MEZCLA_MS) calcularDosis(ph, ahora);
+          if (ahora - desde_ >= MEZCLA_MS) calcularDosis(ph, ntu, ahora);
           break;
+        case EstadoCloro::TURBIA:    // espera a que se asiente o limpien el filtro
         case EstadoCloro::PH_FUERA:  // espera a que corrijan el pH
-          if (gotasPorLitro(ph) > 0) calcularDosis(ph, ahora);
+          if (claraParaClorar(ntu) && gotasPorLitro(ph) > 0) calcularDosis(ph, ntu, ahora);
           break;
         case EstadoCloro::DOSIFICANDO:
           if (gotasAplicadas >= gotasObjetivo) {
@@ -365,7 +380,9 @@ class Cloracion {
     desde_ = ahora;
   }
 
-  void calcularDosis(float ph, unsigned long ahora) {
+  void calcularDosis(float ph, float ntu, unsigned long ahora) {
+    // Primero filtrar (MSP): el cloro no desinfecta bien el agua turbia.
+    if (!claraParaClorar(ntu)) { estado = EstadoCloro::TURBIA; return; }
     float g = gotasPorLitro(ph);
     if (g < 0) { estado = EstadoCloro::PH_FUERA; return; }
     gotasPorLitroUsadas = g;
@@ -390,6 +407,7 @@ struct EstadoSistema {
   bool r2Ok;
   float r2;   // %
   float ph;
+  float ntuR2;
   bool r1Agua;
   float ntuR1;
   const ControlPurga* purga;
@@ -405,6 +423,7 @@ inline Diagnostico diagnosticar(const EstadoSistema& s) {
   if (s.r2 >= NIVEL_SEGURIDAD) return {ROJO, "R2: desborde"};
   if (s.r2 <= NIVEL_CRITICO) return {ROJO, "R2 casi vacio"};
   if (c == EstadoCloro::SIN_CLORO) return {ROJO, "Sin cloro"};
+  if (c == EstadoCloro::TURBIA || !claraParaClorar(s.ntuR2)) return {AMARILLO, "R2 turbia:filtro"};
   if (c == EstadoCloro::PH_FUERA) return {AMARILLO, "pH alto:corregir"};
   if (rangoPh(s.ph) == 0) return {AMARILLO, "pH bajo (acido)"};
   if (s.cloro->pctRestante() < GOTERO_AVISO_PCT) return {AMARILLO, "Recargar cloro"};

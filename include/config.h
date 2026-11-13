@@ -11,6 +11,7 @@ constexpr int PIN_FLOTADOR_R1 = 19;  // flotador de nivel mínimo en R1 (LOW = h
 constexpr int PIN_TRIG_R2   = 5;   // ultrasonido R2 (JSN-SR04T / HC-SR04)
 constexpr int PIN_ECHO_R2   = 18;  // físico: divisor 5 V → 3,3 V
 constexpr int PIN_PH_R2     = 34;  // sensor de pH (módulo PH-4502C) en R2 (ADC1)
+constexpr int PIN_TURB_R2   = 36;  // turbidez en R2, donde cae el agua filtrada (ADC1, VP)
 constexpr int PIN_RELE_PURGA    = 23;  // bomba de purga de lodo (fondo de R1)
 constexpr int PIN_RELE_TRANSFER = 33;  // bomba R1 → filtro → R2
 constexpr int PIN_RELE_GOTEO    = 13;  // electroválvula / bomba dosificadora de cloro
@@ -57,6 +58,22 @@ constexpr unsigned long PURGA_PULSO_MS = 10UL * 1000UL;
 constexpr unsigned long PURGA_PAUSA_MS = 15UL * 1000UL;
 constexpr int           PURGA_MAX_PULSOS = 6;  // si no limpia: "Purga sin efecto"
 constexpr float PURGA_CAUDAL_LPM = 15.0f;  // litros/min de la bomba de purga (medir)
+
+// ---------- Turbidez en R2 (control del filtro) ----------
+// OMS: para que el cloro desinfecte, turbiedad < 5 NTU (ideal < 1 NTU, OPS).
+// El MSP pide filtrar el agua turbia ANTES de clorar: con R2 turbia no se clora.
+constexpr float TURB_R2_MAX_CLORO = 5.0f;  // NTU — más: no clora, revisar filtro
+constexpr float TURB_R2_IDEAL     = 1.0f;  // NTU — solo informativo
+// LÍMITE DEL SENSOR: el SEN0189 cambia ~3,7 NTU por mV cerca del agua limpia,
+// así que no distingue de forma fiable 0 de 5 NTU: detecta agua visiblemente
+// turbia. Calibración: medir el voltaje (ya × divisor) con agua embotellada en
+// R2 y anotarlo aquí; la lectura se corre para que ese voltaje sea 0 NTU.
+// Verificar los 5 NTU a mano con un tubo de turbidez (ver README).
+constexpr float TURB_R2_V_LIMPIA = 4.20f;
+// Si el agua que entra a R2 sigue turbia este tiempo con la bomba encendida:
+// falla "Filtro no limpia" (filtro roto, saturado o mal instalado).
+// Simulación: 20 s. Real: 3 min (da tiempo a que se mezcle con lo que ya había).
+constexpr unsigned long FILTRO_TURBIO_MS = 20UL * 1000UL;
 
 // ---------- Transferencia (R1 → filtro → R2) ----------
 constexpr float R2_ENCENDER = 50.0f;   // % — auto: rellena R2 por debajo

@@ -18,12 +18,12 @@ WebServer server(80);
 ControlPurga purga;
 ControlBomba transfer;
 Cloracion cloro;
-MediaMovil<MUESTRAS_PROMEDIO> mNivel, mNtu, mPh;
+MediaMovil<MUESTRAS_PROMEDIO> mNivel, mNtu, mNtu2, mPh;
 
 struct {
   float ntuR1 = NAN;        // sedimentos en R1
   bool r1Agua = true;       // flotador de R1
-  float distancia = NAN, nivel = NAN, ph = NAN;  // R2
+  float distancia = NAN, nivel = NAN, ph = NAN, ntuR2 = NAN;  // R2
   bool r2Ok = false;
   float litrosR2() const { return r2Ok ? nivel / 100 * R2_CAPACIDAD_L : 0; }
 } m;
@@ -34,7 +34,7 @@ Diagnostico diag = {VERDE, "Iniciando"};
 bool modoAP = false;
 
 // bits de estado: 1 purga, 2 transferencia, 4 goteo
-struct Punto { uint8_t nivel; uint16_t ntu; uint8_t ph10; uint8_t estado; };
+struct Punto { uint8_t nivel; uint16_t ntu; uint16_t ntu2; uint8_t ph10; uint8_t estado; };
 Punto historial[HISTORIAL_PUNTOS];
 int histInicio = 0, histCantidad = 0;
 
@@ -88,6 +88,9 @@ void leerSensores() {
   }
   m.r2Ok = fallosNivel < FALLOS_NIVEL_ALERTA;
   m.ph = mPh.agregar(phDesdeVoltaje(voltios(PIN_PH_R2, PH_DIVISOR)));
+  // Calibrado con agua embotellada: ese voltaje queda como 0 NTU (tope de la curva, 4,2 V).
+  float v2 = voltios(PIN_TURB_R2, TURB_DIVISOR) + (4.2f - TURB_R2_V_LIMPIA);
+  m.ntuR2 = mNtu2.agregar(ntuDesdeVoltaje(v2));
 }
 
 // ¿R1 puede entregar agua a R2?
@@ -131,8 +134,7 @@ void mostrarLcd(unsigned long ahora) {
     case 1:
       if (m.r2Ok) snprintf(a, sizeof a, "R2 %3.0f%% %5.0fL", m.nivel, m.litrosR2());
       else snprintf(a, sizeof a, "R2 nivel: ERROR");
-      static const char* rango[] = {"acido", "optimo", "acept.", "ALTO"};
-      snprintf(b, sizeof b, "pH %4.1f %s", m.ph, rango[rangoPh(m.ph)]);
+      snprintf(b, sizeof b, "pH%4.1f %5.0fNTU", m.ph, m.ntuR2);
       break;
     case 2:
       snprintf(a, sizeof a, "Pur %s Tr %s", purga.encendida ? "ON " : "OFF", transfer.encendida ? "ON" : "OFF");
@@ -159,7 +161,7 @@ void mostrarLcd(unsigned long ahora) {
 // ---------- Historial ----------
 void guardarHistorial() {
   Punto p = {(uint8_t)(m.r2Ok ? lroundf(m.nivel) : 0), (uint16_t)lroundf(isnan(m.ntuR1) ? 0 : m.ntuR1),
-             (uint8_t)lroundf(isnan(m.ph) ? 0 : m.ph * 10),
+             (uint16_t)lroundf(isnan(m.ntuR2) ? 0 : m.ntuR2), (uint8_t)lroundf(isnan(m.ph) ? 0 : m.ph * 10),
              (uint8_t)(purga.encendida | transfer.encendida << 1 | cloro.goteoAbierto << 2)};
   if (histCantidad == HISTORIAL_PUNTOS) histInicio = (histInicio + 1) % HISTORIAL_PUNTOS;
   else histCantidad++;
@@ -196,9 +198,10 @@ void apiEstado() {
       tf(transfer.encendida), tf(transfer.automatico), transfer.motivo, textoFalla(transfer.falla),
       transfer.ciclos, transfer.msEncendidaTotal(ahora) / 1000, transfer.litrosBombeados,
       transfer.ultimaRespuestaS, transfer.llenadosCompletos, transfer.cortesSeguridad);
-  add("\"r2\":{\"ok\":%s,\"nivel\":%.1f,\"litros\":%.0f,\"ph\":%.2f,\"gotas_l\":%.1f,\"rango_ph\":%d},",
+  add("\"r2\":{\"ok\":%s,\"nivel\":%.1f,\"litros\":%.0f,\"ph\":%.2f,\"gotas_l\":%.1f,\"rango_ph\":%d,"
+      "\"ntu\":%.1f,\"clara\":%s},",
       tf(m.r2Ok), m.r2Ok ? m.nivel : 0, m.litrosR2(), isnan(m.ph) ? 0 : m.ph, gotasPorLitro(m.ph),
-      rangoPh(isnan(m.ph) ? 7 : m.ph));
+      rangoPh(isnan(m.ph) ? 7 : m.ph), isnan(m.ntuR2) ? 0 : m.ntuR2, tf(claraParaClorar(m.ntuR2)));
   add("\"cloro\":{\"estado\":\"%s\",\"goteo\":%s,\"pendientes_l\":%.0f,\"objetivo\":%.0f,\"aplicadas\":%.0f,"
       "\"total\":%.0f,\"ph_dosis\":%.2f,\"gotas_l_usadas\":%.1f,\"dosis\":%lu,\"falta_s\":%lu,"
       "\"ml_restantes\":%.0f,\"pct_restante\":%.0f,\"gotas_ml\":%.0f},",
@@ -206,8 +209,9 @@ void apiEstado() {
       cloro.gotasAplicadas, cloro.gotasTotal, cloro.phDosis, cloro.gotasPorLitroUsadas, cloro.dosis,
       cloro.faltaMs(ahora) / 1000, cloro.mlRestantes(), cloro.pctRestante(), GOTAS_POR_ML);
   add("\"cfg\":{\"sed_medio\":%.0f,\"sed_limpio\":%.0f,\"ph_min\":%.1f,\"ph_opt\":%.1f,\"ph_max\":%.1f,"
-      "\"gotas_l\":%.1f,\"r2_on\":%.0f,\"r2_off\":%.0f}}",
+      "\"gotas_l\":%.1f,\"turb_max\":%.0f,\"turb_ideal\":%.0f,\"r2_on\":%.0f,\"r2_off\":%.0f}}",
       SED_MEDIO_NTU, SED_LIMPIO_NTU, PH_MIN, PH_OPTIMO_MAX, PH_MAX, CLORO_GOTAS_POR_LITRO,
+      TURB_R2_MAX_CLORO, TURB_R2_IDEAL,
       R2_ENCENDER, R2_APAGAR);
   server.send(200, "application/json", j);
 }
@@ -220,7 +224,8 @@ void apiHistorial() {
   for (int i = 0; i < histCantidad; i++) {
     const Punto& p = historial[(histInicio + i) % HISTORIAL_PUNTOS];
     if (i) j += ',';
-    j += '[' + String(p.nivel) + ',' + String(p.ntu) + ',' + String(p.ph10) + ',' + String(p.estado) + ']';
+    j += '[' + String(p.nivel) + ',' + String(p.ntu) + ',' + String(p.ph10) + ',' + String(p.estado) + ',' +
+         String(p.ntu2) + ']';
   }
   j += "]}";
   server.send(200, "application/json", j);
@@ -320,6 +325,7 @@ void setup() {
   pinMode(PIN_LED_ROJO, OUTPUT);
   analogSetPinAttenuation(PIN_TURB_R1, ADC_11db);
   analogSetPinAttenuation(PIN_PH_R2, ADC_11db);
+  analogSetPinAttenuation(PIN_TURB_R2, ADC_11db);
 
   if (esp_reset_reason() == ESP_RST_TASK_WDT) Serial.println("Aviso: reinicio por watchdog");
   lcd.init();
@@ -354,7 +360,8 @@ void loop() {
     Falla fallaAntes = transfer.falla;
     float litrosAntes = transfer.litrosBombeados;
     bool disp = r1Disponible();
-    aplicarRele(PIN_RELE_TRANSFER, transfer.actualizar({m.nivel, m.r2Ok, disp, motivoR1, t}));
+    aplicarRele(PIN_RELE_TRANSFER,
+                transfer.actualizar({m.nivel, m.r2Ok, disp, motivoR1, !claraParaClorar(m.ntuR2), t}));
     if (transfer.encendida != antes)
       Serial.printf("Transferencia: %s (%s)\n", transfer.encendida ? "ENCENDIDA" : "apagada", transfer.motivo);
     if (transfer.falla != fallaAntes && transfer.falla != Falla::NINGUNA)
@@ -363,7 +370,7 @@ void loop() {
 
     // 3) R2: pH → gotas de cloro
     EstadoCloro cAntes = cloro.estado;
-    aplicarRele(PIN_RELE_GOTEO, cloro.actualizar(m.ph, transfer.encendida, t));
+    aplicarRele(PIN_RELE_GOTEO, cloro.actualizar(m.ph, m.ntuR2, transfer.encendida, t));
     if (cloro.estado != cAntes) {
       Serial.printf("Cloro: %s", textoCloro(cloro.estado));
       if (cloro.estado == EstadoCloro::DOSIFICANDO)
@@ -372,7 +379,7 @@ void loop() {
       Serial.println();
     }
 
-    Diagnostico d = diagnosticar({m.r2Ok, m.nivel, m.ph, m.r1Agua, m.ntuR1, &purga, &transfer, &cloro});
+    Diagnostico d = diagnosticar({m.r2Ok, m.nivel, m.ph, m.ntuR2, m.r1Agua, m.ntuR1, &purga, &transfer, &cloro});
     if (d.alerta != diag.alerta || strcmp(d.causa, diag.causa) != 0)
       Serial.printf("Estado: %s (%s)\n", nombreAlerta(d.alerta), d.causa);
     diag = d;
@@ -382,9 +389,9 @@ void loop() {
   if (ahora - tHistorial >= INTERVALO_HISTORIAL_MS || tHistorial == 0) {
     tHistorial = ahora;
     guardarHistorial();
-    Serial.printf("{\"ntu_r1\":%.0f,\"r1_agua\":%d,\"r2\":%.1f,\"ph\":%.2f,\"purga\":%d,\"transfer\":%d,"
-                  "\"goteo\":%d,\"estado\":\"%s\"}\n",
-                  m.ntuR1, m.r1Agua, m.nivel, m.ph, purga.encendida, transfer.encendida,
+    Serial.printf("{\"ntu_r1\":%.0f,\"r1_agua\":%d,\"r2\":%.1f,\"ph\":%.2f,\"ntu_r2\":%.1f,\"purga\":%d,"
+                  "\"transfer\":%d,\"goteo\":%d,\"estado\":\"%s\"}\n",
+                  m.ntuR1, m.r1Agua, m.nivel, m.ph, m.ntuR2, purga.encendida, transfer.encendida,
                   cloro.goteoAbierto, diag.causa);
   }
 
