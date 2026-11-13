@@ -1,0 +1,16 @@
+# Configuración para clangd con la toolchain del ESP32 (PlatformIO).
+# Regenerar compile_commands.json tras agregar librerías: pio run -t compiledb
+CompileFlags:
+  Remove: [-mlongcalls, -mtext-section-literals, -fstrict-volatile-bitfields, -fno-tree-switch-conversion, -mdisable-hardware-atomics, -fno-shrink-wrap, -freorder-blocks, -Wno-frame-address, -fno-jump-tables, -mfix-esp32-psram-cache-issue, -mfix-esp32-psram-cache-strategy=*]
+  Add:
+    - -Wno-unknown-warning-option
+    - --target=arm-none-eabi
+    - -D__XTENSA__=1
+    - -D__xtensa__=1
+    - -isystem/home/redcode/.platformio/packages/toolchain-xtensa-esp-elf/xtensa-esp-elf/include/c++/14.2.0
+    - -isystem/home/redcode/.platformio/packages/toolchain-xtensa-esp-elf/xtensa-esp-elf/include/c++/14.2.0/xtensa-esp-elf/esp32
+    - -isystem/home/redcode/.platformio/packages/toolchain-xtensa-esp-elf/lib/gcc/xtensa-esp-elf/14.2.0/include
+    - -isystem/home/redcode/.platformio/packages/toolchain-xtensa-esp-elf/lib/gcc/xtensa-esp-elf/14.2.0/include-fixed
+    - -isystem/home/redcode/.platformio/packages/toolchain-xtensa-esp-elf/xtensa-esp-elf/include
+Diagnostics:
+  Suppress: [drv_unknown_argument, drv_unsupported_opt]
