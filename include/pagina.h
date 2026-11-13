@@ -69,15 +69,15 @@ table{border-collapse:collapse;font-size:.85rem;margin-top:6px}td,th{padding:3px
    <div class="kpi"><span>Última dosis</span><b id="cDosis">–</b><span id="cDosisT"></span></div>
    <div class="kpi"><span>Cloro en el gotero</span><b id="cRest">–</b><span id="cRestT"></span></div>
   </div>
-  <table><tr><th>pH</th><th>Gotas por litro</th></tr>
-   <tr><td id="t1"></td><td>no se clora: corregir pH</td></tr>
-   <tr><td id="t2"></td><td id="t2g"></td></tr>
-   <tr><td id="t3"></td><td id="t3g"></td></tr>
-   <tr><td id="t4"></td><td>no se clora: corregir pH</td></tr></table>
+  <table><tr><th>pH</th><th>¿Clora?</th><th>Nota</th></tr>
+   <tr><td id="t1"></td><td id="t1g"></td><td>agua ácida (corrosiva): avisa</td></tr>
+   <tr><td id="t2"></td><td id="t2g"></td><td>el cloro funciona mejor</td></tr>
+   <tr><td id="t3"></td><td id="t3g"></td><td>funciona, algo menos eficaz</td></tr>
+   <tr><td id="t4"></td><td>no</td><td>el cloro no desinfecta bien: corregir pH</td></tr></table>
   <div class="ctrl"><button onclick="enviar('clorar')">Clorar todo R2</button>
    <button class="sec" onclick="enviar('recarga')">Recargué el cloro</button></div>
-  <small>Cloro de uso doméstico (hipoclorito 5–6 %, sin aroma). Con pH alto el cloro pierde efecto: hay que corregir el pH, no echar más cloro.
-   Valide la tabla con la guía del Ministerio de Salud y la etiqueta del producto.</small></div>
+  <small>Dosis del MSP Ecuador (Guía de Agua Segura): cloro comercial al 5 %, 1 gota por litro y esperar 30 min.
+   La OMS pide pH menor a 8 para que el cloro desinfecte; con pH alto se corrige el pH, no se echa más cloro.</small></div>
 
  <div class="card"><b>Últimos 30 min</b> <small>— <span style="color:var(--agua)">nivel R2 %</span> ·
   <span style="color:#a07a4a">- - sedimentos R1</span> · <span style="color:#8b5cf6">pH</span> ·
@@ -132,15 +132,16 @@ async function estado(){
   // pH y cloro
   $('phMarca').style.left='calc('+(r2.ph/14*100)+'% - 2px)';
   $('phB').textContent=r2.ph.toFixed(2);
-  $('phT').textContent=r2.gotas_l<0?(r2.ph<k.ph_min?'⚠ muy ácido: corregir':'⚠ muy básico: corregir'):'✔ '+r2.gotas_l+' gotas/L';
+  $('phT').textContent=['⚠ ácido: clora, pero corregir','✔ óptimo','✔ aceptable','⚠ alto: no clora, corregir'][r2.rango_ph];
   $('cPend').textContent=Math.round(C.pendientes_l)+' L';
   $('cPendT').textContent=C.pendientes_l>0&&r2.gotas_l>0?'≈ '+Math.round(C.pendientes_l*r2.gotas_l)+' gotas':'';
   $('cDosis').textContent=C.dosis?Math.round(C.objetivo)+' gotas':'–';
   $('cDosisT').textContent=C.dosis?'pH '+C.ph_dosis.toFixed(1)+' · '+C.gotas_l_usadas+' gotas/L · ≈ '+(C.objetivo/C.gotas_ml).toFixed(1)+' ml':'';
   $('cRest').textContent=Math.round(C.ml_restantes)+' ml';$('cRestT').textContent=Math.round(C.pct_restante)+' % de la botella';
   if(!tabla){tabla=true;
-   $('t1').textContent='menos de '+k.ph_min;$('t2').textContent=k.ph_min+' – '+k.ph_opt;$('t2g').textContent=k.g_normal+' (normal)';
-   $('t3').textContent=k.ph_opt+' – '+k.ph_max;$('t3g').textContent=k.g_aum+' (aumentada)';$('t4').textContent='más de '+k.ph_max;}
+   const g='sí, '+k.gotas_l+' gota/L';
+   $('t1').textContent='menos de '+k.ph_min;$('t1g').textContent=g;$('t2').textContent=k.ph_min+' – '+k.ph_opt;$('t2g').textContent=g;
+   $('t3').textContent=k.ph_opt+' – '+k.ph_max;$('t3g').textContent=g;$('t4').textContent='más de '+k.ph_max;}
   // métricas
   $('xP').textContent=P.purgas;$('xPt').textContent=P.ntu_antes<0?'':'última: '+P.ntu_antes+' → '+P.ntu_despues+' NTU';
   $('xPl').textContent=P.litros+' L';$('xT').textContent=T.litros+' L';

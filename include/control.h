@@ -24,10 +24,18 @@ inline float phDesdeVoltaje(float v) {
   return ph < 0 ? 0 : (ph > 14 ? 14 : ph);
 }
 
-// Gotas por litro según el pH; -1 si el pH está fuera del rango en que el cloro sirve.
+// Gotas por litro según el pH: la dosis es fija (MSP); el pH decide si se puede
+// clorar. -1 = pH sobre PH_MAX: el cloro no desinfecta bien, hay que corregirlo.
 inline float gotasPorLitro(float ph) {
-  if (isnan(ph) || ph < PH_MIN || ph > PH_MAX) return -1;
-  return ph <= PH_OPTIMO_MAX ? GOTAS_L_NORMAL : GOTAS_L_AUMENTADA;
+  if (isnan(ph) || ph > PH_MAX) return -1;
+  return CLORO_GOTAS_POR_LITRO;
+}
+
+// 0 ácido (< 6,5), 1 óptimo (6,5–7,5), 2 aceptable (7,5–8), 3 alto (> 8: no clora)
+inline int rangoPh(float ph) {
+  if (ph < PH_MIN) return 0;
+  if (ph <= PH_OPTIMO_MAX) return 1;
+  return ph <= PH_MAX ? 2 : 3;
 }
 
 // 0 poco, 1 medio, 2 alto
@@ -397,7 +405,8 @@ inline Diagnostico diagnosticar(const EstadoSistema& s) {
   if (s.r2 >= NIVEL_SEGURIDAD) return {ROJO, "R2: desborde"};
   if (s.r2 <= NIVEL_CRITICO) return {ROJO, "R2 casi vacio"};
   if (c == EstadoCloro::SIN_CLORO) return {ROJO, "Sin cloro"};
-  if (c == EstadoCloro::PH_FUERA) return {AMARILLO, s.ph < PH_MIN ? "pH bajo:corregir" : "pH alto:corregir"};
+  if (c == EstadoCloro::PH_FUERA) return {AMARILLO, "pH alto:corregir"};
+  if (rangoPh(s.ph) == 0) return {AMARILLO, "pH bajo (acido)"};
   if (s.cloro->pctRestante() < GOTERO_AVISO_PCT) return {AMARILLO, "Recargar cloro"};
   if (s.purga->encendida || s.purga->estado != EstadoPurga::LIMPIO) return {AMARILLO, "Purgando lodo"};
   if (!s.r1Agua) return {AMARILLO, "R1 sin agua"};

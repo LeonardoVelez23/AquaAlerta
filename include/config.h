@@ -70,18 +70,20 @@ constexpr unsigned long BOMBA_MAX_MS          = 10UL * 60UL * 1000UL;
 constexpr unsigned long BOMBA_MIN_APAGADA_MS  = 10UL * 1000UL;
 
 // ---------- Cloración en R2 según el pH ----------
-// Cloro de uso doméstico (hipoclorito de sodio 5–6 %, sin aroma).
-// El cloro desinfecta bien con pH 6,5–7,5; sobre 8 pierde mucho efecto y no se
-// compensa echando más cloro: hay que corregir el pH.
-// VALORES A VALIDAR con la guía del Ministerio de Salud y la etiqueta del cloro.
-constexpr float PH_MIN       = 6.5f;   // más ácido: no se dosifica, corregir pH
-constexpr float PH_OPTIMO_MAX = 7.5f;  // 6,5–7,5 → dosis normal
-constexpr float PH_MAX       = 8.0f;   // 7,5–8,0 → dosis aumentada; más: corregir pH
-constexpr float GOTAS_L_NORMAL    = 2.0f;  // gotas por litro con pH óptimo
-constexpr float GOTAS_L_AUMENTADA = 2.5f;  // gotas por litro con pH 7,5–8,0
-constexpr float GOTAS_POR_ML = 20.0f;      // gotero estándar
+// Dosis: MSP Ecuador, "Guía de Agua Segura" (2020), dosis domiciliaria:
+//   cloro comercial al 5 % → 1 gota por litro (20 L → 20 gotas), esperar 30 min.
+//   Con otra concentración: gotas/L = 5 / % del producto (ej. 2,5 % → 2 gotas/L).
+// pH: la OPS (citada en la misma guía) pide pH 6,5–7 y la OMS pH < 8,0 para que
+// el cloro desinfecte. Ninguna de las dos sube la dosis según el pH: el pH decide
+// SI se puede clorar, no cuántas gotas. Con pH > 8 echar más cloro no lo
+// arregla y además pasaría el máximo de 5 mg/L de la OMS.
+constexpr float CLORO_GOTAS_POR_LITRO = 1.0f;  // cloro comercial al 5 % (MSP)
+constexpr float PH_MIN        = 6.5f;  // más ácido: sí clora, pero avisa (agua corrosiva)
+constexpr float PH_OPTIMO_MAX = 7.5f;  // 6,5–7,5: el cloro funciona mejor
+constexpr float PH_MAX        = 8.0f;  // más básico: NO clora, pide corregir el pH (OMS)
+constexpr float GOTAS_POR_ML = 20.0f;  // gotero estándar
 // Ritmo del dosificador abierto (medir: ml que saca en 1 min × 20).
-// Bomba peristáltica pequeña ≈ 30 ml/min = 600 gotas/min (300 L → 600 gotas en 1 min).
+// Bomba peristáltica pequeña ≈ 30 ml/min = 600 gotas/min (300 L → 300 gotas en 30 s).
 // Un gotero por gravedad da ~60–120 gotas/min: sirve, pero tarda mucho más.
 constexpr float GOTEO_GOTAS_MIN = 600.0f;
 constexpr float GOTERO_CAPACIDAD_ML = 1000.0f;  // botella de cloro

@@ -131,7 +131,8 @@ void mostrarLcd(unsigned long ahora) {
     case 1:
       if (m.r2Ok) snprintf(a, sizeof a, "R2 %3.0f%% %5.0fL", m.nivel, m.litrosR2());
       else snprintf(a, sizeof a, "R2 nivel: ERROR");
-      snprintf(b, sizeof b, "pH %4.1f %s", m.ph, gotasPorLitro(m.ph) < 0 ? "FUERA" : "ok");
+      static const char* rango[] = {"acido", "optimo", "acept.", "ALTO"};
+      snprintf(b, sizeof b, "pH %4.1f %s", m.ph, rango[rangoPh(m.ph)]);
       break;
     case 2:
       snprintf(a, sizeof a, "Pur %s Tr %s", purga.encendida ? "ON " : "OFF", transfer.encendida ? "ON" : "OFF");
@@ -195,8 +196,9 @@ void apiEstado() {
       tf(transfer.encendida), tf(transfer.automatico), transfer.motivo, textoFalla(transfer.falla),
       transfer.ciclos, transfer.msEncendidaTotal(ahora) / 1000, transfer.litrosBombeados,
       transfer.ultimaRespuestaS, transfer.llenadosCompletos, transfer.cortesSeguridad);
-  add("\"r2\":{\"ok\":%s,\"nivel\":%.1f,\"litros\":%.0f,\"ph\":%.2f,\"gotas_l\":%.1f},",
-      tf(m.r2Ok), m.r2Ok ? m.nivel : 0, m.litrosR2(), isnan(m.ph) ? 0 : m.ph, gotasPorLitro(m.ph));
+  add("\"r2\":{\"ok\":%s,\"nivel\":%.1f,\"litros\":%.0f,\"ph\":%.2f,\"gotas_l\":%.1f,\"rango_ph\":%d},",
+      tf(m.r2Ok), m.r2Ok ? m.nivel : 0, m.litrosR2(), isnan(m.ph) ? 0 : m.ph, gotasPorLitro(m.ph),
+      rangoPh(isnan(m.ph) ? 7 : m.ph));
   add("\"cloro\":{\"estado\":\"%s\",\"goteo\":%s,\"pendientes_l\":%.0f,\"objetivo\":%.0f,\"aplicadas\":%.0f,"
       "\"total\":%.0f,\"ph_dosis\":%.2f,\"gotas_l_usadas\":%.1f,\"dosis\":%lu,\"falta_s\":%lu,"
       "\"ml_restantes\":%.0f,\"pct_restante\":%.0f,\"gotas_ml\":%.0f},",
@@ -204,8 +206,8 @@ void apiEstado() {
       cloro.gotasAplicadas, cloro.gotasTotal, cloro.phDosis, cloro.gotasPorLitroUsadas, cloro.dosis,
       cloro.faltaMs(ahora) / 1000, cloro.mlRestantes(), cloro.pctRestante(), GOTAS_POR_ML);
   add("\"cfg\":{\"sed_medio\":%.0f,\"sed_limpio\":%.0f,\"ph_min\":%.1f,\"ph_opt\":%.1f,\"ph_max\":%.1f,"
-      "\"g_normal\":%.1f,\"g_aum\":%.1f,\"r2_on\":%.0f,\"r2_off\":%.0f}}",
-      SED_MEDIO_NTU, SED_LIMPIO_NTU, PH_MIN, PH_OPTIMO_MAX, PH_MAX, GOTAS_L_NORMAL, GOTAS_L_AUMENTADA,
+      "\"gotas_l\":%.1f,\"r2_on\":%.0f,\"r2_off\":%.0f}}",
+      SED_MEDIO_NTU, SED_LIMPIO_NTU, PH_MIN, PH_OPTIMO_MAX, PH_MAX, CLORO_GOTAS_POR_LITRO,
       R2_ENCENDER, R2_APAGAR);
   server.send(200, "application/json", j);
 }

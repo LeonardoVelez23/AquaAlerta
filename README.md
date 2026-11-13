@@ -83,38 +83,47 @@ en su **propia red WiFi** si en la casa no hay internet.
 Cuando termina de entrar agua:
 
 1. **Mezcla:** espera 15 s (en real, 5 min) para que el pH se estabilice.
-2. **Mide el pH** y elige la dosis:
+2. **Mide el pH.** El pH decide **si se puede clorar**; la dosis es la del MSP:
 
-   | pH | Gotas por litro | Por qué |
+   | pH | ¿Clora? | Por qué |
    |---|---|---|
-   | menos de 6,5 | **no clora**, avisa "pH bajo: corregir" | agua ácida, corrosiva |
-   | 6,5 – 7,5 | **2** (normal) | el cloro funciona mejor |
-   | 7,5 – 8,0 | **2,5** (aumentada) | el cloro pierde algo de efecto |
-   | más de 8,0 | **no clora**, avisa "pH alto: corregir" | el cloro casi no desinfecta; más cloro no lo arregla |
+   | menos de 6,5 | sí, 1 gota/L, y avisa "pH bajo (ácido)" | el cloro funciona, pero el agua ácida es corrosiva |
+   | 6,5 – 7,5 | sí, 1 gota/L | el cloro funciona mejor (OPS: pH 6,5–7) |
+   | 7,5 – 8,0 | sí, 1 gota/L | funciona, algo menos eficaz |
+   | más de 8,0 | **no**, avisa "pH alto: corregir" | la OMS pide pH < 8 para desinfectar; echar más cloro no lo arregla |
 
-3. **Gotas = litros que entraron × gotas por litro.** Por ejemplo, 300 L con pH
-   7,2 → 600 gotas ≈ 30 ml.
+3. **Gotas = litros que entraron × 1 gota/L** (cloro comercial al 5 %). Por
+   ejemplo, 300 L → 300 gotas ≈ 15 ml. Es la misma proporción de la tabla del
+   MSP: 20 L → 20 gotas.
 4. **Dosifica:** abre la bomba dosificadora el tiempo justo para esas gotas,
    según el caudal `GOTEO_GOTAS_MIN`.
-5. **Contacto:** "Clorando: espere" durante 60 s (en real, 30 min) y luego
-   **"Agua lista"**.
+5. **Contacto:** "Clorando: espere" durante 60 s (en real, **30 min**, como
+   indica el MSP) y luego **"Agua lista"**.
 
-- Si el pH está fuera de rango, el sistema **espera**. Cuando se corrige el pH,
-  clora solo.
+- Si el pH está sobre 8, el sistema **espera**. Cuando se corrige el pH, clora
+  solo.
 - Lleva la cuenta del cloro que queda en la botella ("Recargar cloro" bajo
   20 %, "Sin cloro" en rojo). Después de rellenar, pulsar *Recargué el cloro*.
 - El botón **Clorar todo R2** sirve, por ejemplo, después de un corte de luz:
   calcula la dosis para todos los litros de R2.
-- **La tabla de dosis está en `include/config.h` y hay que validarla** con la
-  guía del Ministerio de Salud y el porcentaje que indica la etiqueta del cloro
-  (hipoclorito 5–6 %, sin aroma).
+- **Si el cloro no es al 5 %:** gotas/L = 5 ÷ % de la etiqueta (por ejemplo,
+  al 2,5 % son 2 gotas/L). Se cambia en `CLORO_GOTAS_POR_LITRO`. Usar cloro sin
+  aroma ni detergente.
+
+**Fuentes de la dosis y del pH:**
+- MSP Ecuador, *Guía de Agua Segura* (2020), p. 43: cloro comercial al 5 % → 1
+  gota por litro, 20 L → 20 gotas; esperar 30 min. En la p. 42 cita a la OPS:
+  cloro libre residual ≥ 0,5 mg/L, 30 min de contacto, pH 6,5–7, turbiedad ≤ 1 UNT.
+  <https://www.salud.gob.ec/wp-content/uploads/2020/12/Guia-Agua-Segura.pdf>
+- OMS, *Guías para la calidad del agua potable*: cloro libre residual ≥ 0,5 mg/L
+  tras 30 min a **pH < 8,0**; turbiedad < 5 NTU; máximo 5 mg/L por sabor.
 
 ## Semáforo
 
 | Color | Cuándo |
 |---|---|
 | 🟢 Verde | "Agua lista": R2 clorada y con el tiempo de contacto cumplido |
-| 🟡 Amarillo | pH bajo/alto: corregir, recargar cloro, purgando lodo, R1 sin agua, R1 con lodo, midiendo pH, aplicando cloro, clorando: espere, R2 nivel bajo |
+| 🟡 Amarillo | pH alto: corregir, pH bajo (ácido), recargar cloro, purgando lodo, R1 sin agua, R1 con lodo, midiendo pH, aplicando cloro, clorando: espere, R2 nivel bajo |
 | 🔴 Rojo + buzzer | Falla del sensor de R2, "Filtro tapado?", "Purga sin efecto", R2 ≥ 95 %, R2 ≤ 10 %, sin cloro |
 
 ## Página web
@@ -125,7 +134,7 @@ Al arrancar intenta conectarse al WiFi de `include/secrets.h`. Si no puede en
 
 - R1 con la capa de lodo según los sedimentos, R2 con su nivel, y los íconos
   purga → bomba → filtro, que se encienden cuando trabajan.
-- Barra de pH (0–14) con la zona verde, la tabla de dosis, las gotas del agua
+- Barra de pH (0–14) con la zona verde, la tabla de pH, las gotas del agua
   por clorar, la última dosis (pH, gotas/L, gotas, ml) y el cloro restante.
 - Gráfico de los últimos 30 min: nivel de R2, sedimentos de R1, pH, y franjas
   de purga, transferencia y goteo.
@@ -160,8 +169,8 @@ Al arrancar intenta conectarse al WiFi de `include/secrets.h`. Si no puede en
      ≤ 32 cm (90 %) se apaga.
    - R2: **"Midiendo pH"** 15 s → **"Aplicando cloro" (LED blanco)** con las
      gotas calculadas → **"Clorando: espere"** 60 s → **"Agua lista"** (verde).
-   - Potenciómetro `ph` casi al máximo → pH bajo; casi al mínimo → pH alto: no
-     clora y pide corregir. Llévalo al centro y clora solo.
+   - Potenciómetro `ph` casi al mínimo → pH alto: no clora y pide corregir.
+     Llévalo al centro y clora solo. Casi al máximo → pH bajo: clora, pero avisa.
    - Potenciómetro `turb` hacia abajo → sedimentos → se detiene la
      transferencia y arranca la **purga (LED azul)** por pulsos. Súbelo durante
      una pausa (agua limpia) y la purga termina. Si no lo subes, tras 6 pulsos
@@ -198,7 +207,7 @@ Al arrancar intenta conectarse al WiFi de `include/secrets.h`. Si no puede en
 ## Estructura
 
 ```
-include/config.h    pines, umbrales de sedimentos, tabla pH → gotas, tiempos
+include/config.h    pines, umbrales de sedimentos, dosis de cloro, rangos de pH, tiempos
 include/control.h   lógica pura: purga, transferencia, cloración por pH y semáforo
 include/pagina.h    página web (HTML/CSS/JS embebido)
 src/main.cpp        sensores, relés, LCD, WiFi/AP y servidor web
