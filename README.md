@@ -135,6 +135,8 @@ botón *Tratar R1 ahora*:
 - Si con la bomba encendida el agua de R2 sigue **turbia (> 5 NTU) por más de
   20 s** (en real, 3 min), apaga la bomba con la falla **"Filtro no limpia"**:
   el filtro está roto, saturado o mal colocado.
+- El filtro es **de capas** (arena fina, carbón activado, gravilla y grava) y
+  se lava a mano cuando aparece una de estas dos fallas (ver *Armado físico*).
 
 ### 4. pH y gotas de cloro en R2
 
@@ -325,8 +327,23 @@ wokwi-cli --scenario scenarios/flujo-completo.yaml --timeout 600000 .
 - **Bomba de purga** con la succión en el punto más bajo del fondo (ideal: fondo
   en pendiente o cónico). La salida va a desagüe o a riego.
 - **Bomba de transferencia** con la succión a 10–15 cm **sobre el fondo**, para
-  no tomar lodo. Instalar el **filtro** en la manguera hacia R2 (cartucho de
-  sedimentos 50 → 5 micras, o filtro casero de grava, arena y algodón).
+  no tomar lodo. Descarga en la parte de arriba del **filtro de capas**.
+- **Filtro de capas** (el agua baja por gravedad), de arriba hacia abajo:
+  1. **Arena fina:** retiene las partículas y los flóculos que escaparon.
+  2. **Carbón activado:** quita olor, sabor y parte de los químicos. Va debajo
+     de la arena para que no se tape.
+  3. **Gravilla.**
+  4. **Grava gruesa:** sostiene las capas y deja salir el agua.
+
+  Malla o tela entre capas, materiales lavados antes de armar, y la salida por
+  el fondo cae a R2. Montar en escalera (R1 arriba, filtro en medio, R2 abajo):
+  del filtro a R2 pasa por gravedad. La bomba no debe dar más agua de la que el
+  filtro alcanza a pasar; si el filtro se llena, bajar el caudal.
+- **Lavado del filtro (manual):** cuando aparece "Filtro no limpia" o
+  "Filtro tapado?", se lava la arena (retrolavado: agua limpia de abajo hacia
+  arriba hasta que salga clara) y cada cierto tiempo se cambia el carbón
+  activado. Automatizar el retrolavado con otra bomba y válvulas queda para la
+  fase 2.
 - **Flotador** en R1 a la altura de la succión de transferencia: si el agua baja
   de ahí, ninguna bomba funciona.
 - **Sensor de turbidez de R2** donde cae el agua del filtro, sumergido sin
