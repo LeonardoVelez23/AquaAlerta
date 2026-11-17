@@ -1,6 +1,7 @@
 // Configuración de pines, reservorios, tiempos y umbrales de AquaAlerta.
 //
-//  R1 (sedimentos) ── bomba de purga ──► desagüe / riego
+//  R1 (PAC + agitador: coagulación, floculación, sedimentación)
+//   ├─ bomba de purga ──► lodo al desagüe / riego
 //   └─ sin sedimentos ── bomba de transferencia ──► FILTRO ──► R2 (pH + gotas de cloro) ──► uso
 #pragma once
 #include <stdint.h>
@@ -20,8 +21,17 @@ constexpr int PIN_LED_AMAR  = 27;
 constexpr int PIN_LED_ROJO  = 14;
 constexpr int PIN_BUZZER    = 25;
 constexpr int PIN_BOTON     = 4;   // silenciar alarma y reiniciar fallas
+constexpr int PIN_TRIG_R1   = 16;  // ultrasonido R1: litros para calcular la dosis de PAC
+constexpr int PIN_ECHO_R1   = 17;  // físico: divisor 5 V → 3,3 V
+constexpr int PIN_RELE_PAC  = 32;  // bomba dosificadora de PAC (coagulante) en R1
+constexpr int PIN_AGITADOR  = 2;   // PWM → driver/MOSFET del motor del agitador de R1
 constexpr int LCD_ADDR      = 0x27;
 constexpr bool RELE_ACTIVO_ALTO = true;  // muchos módulos físicos son activo-bajo
+
+// ---------- R1 (agua cruda) ----------
+constexpr float R1_DIST_VACIO_CM = 100.0f;  // sensor → fondo
+constexpr float R1_DIST_LLENO_CM = 25.0f;   // sensor → nivel máximo
+constexpr float R1_CAPACIDAD_L   = 500.0f;  // litros entre vacío y lleno
 
 // ---------- R2 (agua tratada) ----------
 // Distancias medidas desde el sensor (en la tapa) hasta el agua.
@@ -46,6 +56,38 @@ constexpr float TURB_DIVISOR = 1.5f;   // divisor 10k/20k en la salida (4,5 V �
 constexpr float PH_DIVISOR = 1.5f;     // divisor 10k/20k en la salida Po
 constexpr float PH_V7 = 2.50f;         // voltaje con buffer pH 7
 constexpr float PH_V4 = 3.05f;         // voltaje con buffer pH 4
+
+// ---------- R1: coagulación y floculación con PAC ----------
+// Ciclo por lote de agua nueva:
+//   homogeneizar y medir turbidez → dosificar PAC → mezcla rápida (coagulación)
+//   → mezcla lenta (floculación) → reposo (sedimentación) → purga del lodo.
+// Dosis por dilución: C1·V1 = C2·V2 → V1 = C2·V2 / C1
+//   C1 = solución madre de PAC, C2 = dosis en el agua, V2 = litros de R1.
+//   Ej.: 200 ppm en 500 ml con solución al 1 % (10 000 ppm) → 10 ml de PAC.
+constexpr float PAC_STOCK_PPM = 10000.0f;  // solución madre al 1 % (en un aljibe real conviene al 10 %)
+constexpr float COAG_MIN_NTU  = 10.0f;     // agua más clara que esto: no se usa PAC
+// Tabla turbidez → dosis. PROVISIONAL, de las notas del equipo (seca: 20 NTU →
+// 20–40 ppm). Reemplazar con los resultados de la prueba de jarras del agua real.
+// Sobre el último punto se usa la dosis tope y se avisa (hacer prueba de jarras).
+constexpr int   PAC_PUNTOS = 3;
+constexpr float PAC_TABLA_NTU[PAC_PUNTOS] = {10.0f, 20.0f, 100.0f};
+constexpr float PAC_TABLA_PPM[PAC_PUNTOS] = {20.0f, 30.0f, 200.0f};
+constexpr float PAC_CAUDAL_ML_MIN = 1000.0f;  // bomba dosificadora de PAC (medir)
+constexpr float PAC_TANQUE_ML     = 20000.0f; // bidón de solución madre
+constexpr float PAC_AVISO_PCT     = 20.0f;    // "Recargar PAC" bajo este %
+constexpr float R1_SUBIDA_LOTE    = 5.0f;     // % que sube R1 para contar "agua nueva"
+// Agitador: motor DC con paleta, velocidad por PWM (lazo abierto). Calibrar:
+// medir las RPM al 100 % de PWM (tacómetro o app del celular) y anotarlas aquí.
+constexpr int AGIT_RPM_MAX    = 200;
+constexpr int AGIT_RPM_RAPIDA = 150;  // coagulación: 140–160 RPM
+constexpr int AGIT_RPM_LENTA  = 40;   // floculación: 40 RPM
+constexpr int AGIT_PWM_FREQ   = 1000;
+constexpr int AGIT_PWM_BITS   = 8;
+// Simulación: 5 s, 15 s, 20 s y 30 s. Real: 30 s, 3–5 min, 10–15 min y 30 min.
+constexpr unsigned long COAG_MEDIR_MS  = 5UL * 1000UL;   // homogeneizar antes de medir
+constexpr unsigned long COAG_RAPIDA_MS = 15UL * 1000UL;  // coagulación
+constexpr unsigned long COAG_LENTA_MS  = 20UL * 1000UL;  // floculación
+constexpr unsigned long COAG_SEDIM_MS  = 30UL * 1000UL;  // sedimentación
 
 // ---------- R1: sedimentos y purga ----------
 // El sensor de turbidez va cerca del fondo: mide cuánto sedimento hay.

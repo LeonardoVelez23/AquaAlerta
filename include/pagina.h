@@ -41,11 +41,13 @@ table{border-collapse:collapse;font-size:.85rem;margin-top:6px}td,th{padding:3px
  <div id="banner" class="VERDE">Cargando…</div>
 
  <div class="card"><div class="flujo">
-  <div class="tq"><h3>R1 · Sedimentos</h3>
+  <div class="tq"><h3>R1 · Coagulación y sedimentos</h3>
    <div class="tanque"><div class="agua" id="a1" style="height:85%"></div><div class="lodo" id="lodo1" style="height:0"></div>
     <div class="pct" id="p1">–</div></div>
-   <p><b id="sed">–</b> · <span id="n1">–</span> NTU<br><span id="s1">–</span></p></div>
+   <p><b id="l1">–</b> L · <b id="sed">–</b> · <span id="n1">–</span> NTU<br><span id="s1">–</span></p></div>
   <div class="paso">
+   <span class="ic" id="icC">🧪</span>PAC
+   <span class="ic" id="icM">🌀</span>agitador
    <span class="ic" id="icP">🟤</span>purga
    <span class="ic" id="icB">⚙️</span>bomba
    <span class="ic" id="icF">🧽</span>filtro</div>
@@ -55,10 +57,27 @@ table{border-collapse:collapse;font-size:.85rem;margin-top:6px}td,th{padding:3px
  </div></div>
 
  <div class="kpis">
+  <div class="card kpi"><span>Coagulación en R1</span><b id="bC">–</b><span id="mC"></span></div>
   <div class="card kpi"><span>Bomba de purga (lodo de R1)</span><b id="bP">–</b><span id="mP"></span></div>
   <div class="card kpi"><span>Bomba R1 → filtro → R2</span><b id="bT">–</b><span id="mT"></span></div>
   <div class="card kpi"><span>Gotero de cloro</span><b id="bG">–</b><span id="mG"></span></div>
  </div>
+
+ <div class="card"><b>🌀 Coagulación con PAC en R1</b>
+  <div class="kpis" style="margin-top:12px">
+   <div class="kpi"><span>Etapa</span><b id="kE">–</b><span id="kEt"></span></div>
+   <div class="kpi"><span>Turbidez medida (agua mezclada)</span><b id="kN">–</b><span id="kNt"></span></div>
+   <div class="kpi"><span>Dosis de PAC</span><b id="kD">–</b><span id="kDt"></span></div>
+   <div class="kpi"><span>PAC aplicado</span><b id="kA">–</b><span id="kAt"></span></div>
+   <div class="kpi"><span>Agitador</span><b id="kR">–</b><span id="kRt"></span></div>
+   <div class="kpi"><span>PAC en el bidón</span><b id="kB">–</b><span id="kBt"></span></div>
+  </div>
+  <div class="ctrl"><button onclick="enviar('tratar')">Tratar R1 ahora</button>
+   <button class="sec" onclick="enviar('pac_recarga')">Recargué el PAC</button></div>
+  <small>Cada vez que entra agua a R1: agita y mide la turbidez, calcula la dosis con
+   C1·V1 = C2·V2 (V1 = ppm × litros ÷ concentración de la solución madre), mezcla rápido
+   (coagulación), mezcla lento (floculación) y deja reposar (sedimentación). Después la
+   bomba de purga saca el lodo. La tabla turbidez → ppm sale de la prueba de jarras.</small></div>
 
  <div class="card"><b>🧪 pH y cloro en R2</b>
   <div class="barra"><i id="phMarca" style="left:50%"></i></div>
@@ -83,7 +102,7 @@ table{border-collapse:collapse;font-size:.85rem;margin-top:6px}td,th{padding:3px
 
  <div class="card"><b>Últimos 30 min</b> <small>— <span style="color:var(--agua)">nivel R2 %</span> ·
   <span style="color:#a07a4a">- - sedimentos R1</span> · <span style="color:#1f9d55">·· turbidez R2</span> · <span style="color:#8b5cf6">pH</span> ·
-  franjas: <span style="color:#a07a4a">purga</span>, <span style="color:var(--agua)">transferencia</span>, <span style="color:#8b5cf6">goteo</span></small>
+  franjas: <span style="color:#0e9aa7">agitador/PAC</span>, <span style="color:#a07a4a">purga</span>, <span style="color:var(--agua)">transferencia</span>, <span style="color:#8b5cf6">goteo</span></small>
   <canvas id="graf"></canvas></div>
 
  <div class="card"><b>Control</b>
@@ -95,10 +114,11 @@ table{border-collapse:collapse;font-size:.85rem;margin-top:6px}td,th{padding:3px
    <button onclick="enviar('t_auto')">Automático</button><button onclick="enviar('t_on')">Encender</button>
    <button class="sec" onclick="enviar('t_off')">Apagar</button></div>
   <div class="ctrl"><button class="sec" onclick="enviar('reset')">Reiniciar fallas</button><small id="resp"></small></div>
-  <small>Protecciones: no pasa agua a R2 mientras R1 tenga sedimentos, R1 esté sin agua o R2 se esté clorando;
+  <small>Protecciones: no pasa agua a R2 mientras R1 se esté coagulando, tenga sedimentos, esté sin agua o R2 se esté clorando;
    corte al 95 %; si R2 no sube con la bomba encendida avisa «Filtro tapado?».</small></div>
 
  <div class="card"><b>Métricas</b><div class="kpis" style="margin-top:10px">
+  <div class="kpi"><span>Lotes coagulados</span><b id="xC">–</b><span id="xCt"></span></div>
   <div class="kpi"><span>Purgas de lodo</span><b id="xP">–</b><span id="xPt"></span></div>
   <div class="kpi"><span>Agua usada en purga</span><b id="xPl">–</b><span>reutilizable para riego</span></div>
   <div class="kpi"><span>Litros tratados (a R2)</span><b id="xT">–</b></div>
@@ -113,15 +133,16 @@ try{$('pin').value=sessionStorage.getItem('pin')||''}catch(e){}
 let tabla=false;
 async function estado(){
  try{
-  const d=await (await fetch('/api/estado')).json(),r1=d.r1,P=d.purga,T=d.transfer,r2=d.r2,C=d.cloro,k=d.cfg;
+  const d=await (await fetch('/api/estado')).json(),r1=d.r1,K=d.coag,P=d.purga,T=d.transfer,r2=d.r2,C=d.cloro,k=d.cfg;
   $('con').textContent='en línea · '+new Date().toLocaleTimeString();
   $('banner').className=d.alerta;$('banner').textContent=d.causa;
   // R1
-  $('a1').style.height=r1.agua?'85%':'6%';
+  $('a1').style.height=!r1.agua?'6%':(r1.nivel_ok?Math.max(6,r1.nivel)+'%':'85%');
+  $('l1').textContent=r1.nivel_ok?r1.litros:'¿?';
   $('lodo1').style.height=Math.min(40,r1.ntu/300*40)+'%';
   $('p1').textContent=['🙂','😐','🟤'][r1.sedimento];
   $('sed').textContent='Sedimentos: '+['pocos','medios','muchos'][r1.sedimento];$('n1').textContent=r1.ntu;
-  $('s1').textContent=!r1.agua?'⚠ R1 sin agua':P.estado=='PULSO'?'Purgando lodo '+P.pulso+'/'+P.max_pulsos:
+  $('s1').textContent=!r1.agua?'⚠ R1 sin agua':K.ocupado?K.estado+(K.falta_s>0?' · '+K.falta_s+' s':''):P.estado=='PULSO'?'Purgando lodo '+P.pulso+'/'+P.max_pulsos:
    P.estado=='PAUSA'?'Asentando '+P.pulso+'/'+P.max_pulsos:(r1.disponible?'✔ sin sedimentos, lista':r1.motivo);
   // R2
   $('a2').style.height=(r2.ok?r2.nivel:0)+'%';$('p2').textContent=r2.ok?r2.nivel.toFixed(0)+'%':'¿?';
@@ -132,7 +153,20 @@ async function estado(){
   $('xF').textContent=r1.ntu+' → '+r2.ntu.toFixed(1)+' NTU';
   $('xFt').textContent=r1.ntu>0?'−'+Math.max(0,Math.round((r1.ntu-r2.ntu)/r1.ntu*100))+' %':'';
   $('s2').textContent=C.estado+(C.falta_s>0?' · '+C.falta_s+' s':'');
+  $('icC').classList.toggle('on',K.pac_on);$('icM').classList.toggle('on',K.rpm>0);
   $('icP').classList.toggle('on',P.on);$('icB').classList.toggle('on',T.on);$('icF').classList.toggle('on',T.on);
+  // coagulación
+  $('bC').textContent=K.estado;$('mC').textContent=K.ocupado&&K.falta_s>0?'faltan '+K.falta_s+' s':(K.pendiente?'agua nueva por tratar':'');
+  $('kE').textContent=K.estado;$('kEt').textContent=K.falta_s>0?'faltan '+K.falta_s+' s':'';
+  $('kN').textContent=K.ntu_medida<0?'–':K.ntu_medida+' NTU';
+  $('kNt').textContent=K.fuera_tabla?'⚠ fuera de la tabla: hacer prueba de jarras':(K.sin_pac?'clara (< '+k.coag_min+' NTU): sin PAC':'');
+  $('kD').textContent=K.ppm>0?K.ppm+' ppm':'–';
+  $('kDt').textContent=K.sin_nivel?'⚠ sin nivel de R1: no se dosificó':(K.ppm>0?'para '+K.litros+' L de agua':'');
+  $('kA').textContent=K.ml_objetivo>0?Math.round(K.ml_aplicados)+' / '+Math.round(K.ml_objetivo)+' ml':'–';
+  $('kAt').textContent='solución madre '+(k.pac_stock/10000)+' % ('+k.pac_stock+' ppm)';
+  $('kR').textContent=K.rpm>0?K.rpm+' RPM':'quieto';
+  $('kRt').textContent=K.rpm==k.rpm_rapida?'mezcla rápida (coagulación)':K.rpm==k.rpm_lenta?'mezcla lenta (floculación)':'';
+  $('kB').textContent=Math.round(K.ml_restantes)+' ml';$('kBt').textContent=Math.round(K.pct_restante)+' % del bidón';
   // bombas
   $('bP').textContent=P.falla?'FALLA':(P.on?'ENCENDIDA':'apagada');$('mP').textContent=(P.auto?'':'manual · ')+P.motivo;
   $('bT').textContent=T.falla?'FALLA':(T.on?'ENCENDIDA':'apagada');$('mT').textContent=(T.auto?'':'manual · ')+(T.falla||T.motivo);
@@ -151,6 +185,7 @@ async function estado(){
    $('t1').textContent='menos de '+k.ph_min;$('t1g').textContent=g;$('t2').textContent=k.ph_min+' – '+k.ph_opt;$('t2g').textContent=g;
    $('t3').textContent=k.ph_opt+' – '+k.ph_max;$('t3g').textContent=g;$('t4').textContent='más de '+k.ph_max;}
   // métricas
+  $('xC').textContent=K.lotes;$('xCt').textContent=Math.round(K.ml_total)+' ml de PAC usados';
   $('xP').textContent=P.purgas;$('xPt').textContent=P.ntu_antes<0?'':'última: '+P.ntu_antes+' → '+P.ntu_despues+' NTU';
   $('xPl').textContent=P.litros+' L';$('xT').textContent=T.litros+' L';
   $('xD').textContent=C.dosis;$('xDt').textContent=Math.round(C.total)+' gotas ≈ '+Math.round(C.total/C.gotas_ml)+' ml';
@@ -163,8 +198,8 @@ async function historial(){
   const W=c.width=c.clientWidth*devicePixelRatio,H=c.height=c.clientHeight*devicePixelRatio,n=h.datos.length;
   x.clearRect(0,0,W,H);if(n<2)return;
   const px=i=>i/(h.max-1)*W,w=W/(h.max-1)+1;
-  // franjas: purga arriba, transferencia al medio, goteo abajo
-  [[1,'#a07a4a99',0,.08],[2,'#2f8fd833',.08,.84],[4,'#8b5cf6aa',.92,.08]].forEach(([b,col,y,alto])=>{x.fillStyle=col;
+  // franjas: agitador/PAC y purga arriba, transferencia al medio, goteo abajo
+  [[24,'#0e9aa7aa',0,.08],[1,'#a07a4a99',.08,.08],[2,'#2f8fd833',.16,.76],[4,'#8b5cf6aa',.92,.08]].forEach(([b,col,y,alto])=>{x.fillStyle=col;
    h.datos.forEach((p,i)=>{if(p[3]&b)x.fillRect(px(i),y*H,w,alto*H)})});
   const linea=(f,col,dash)=>{x.strokeStyle=col;x.lineWidth=2*devicePixelRatio;x.setLineDash(dash);x.beginPath();
    h.datos.forEach((p,i)=>{const y=H-f(p)*H;i?x.lineTo(px(i),y):x.moveTo(px(i),y)});x.stroke();x.setLineDash([])};

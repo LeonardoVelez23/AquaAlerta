@@ -10,6 +10,11 @@ inline float nivelDesdeDistancia(float distCm) {
   return p < 0 ? 0 : (p > 100 ? 100 : p);
 }
 
+inline float nivelR1DesdeDistancia(float distCm) {
+  float p = (R1_DIST_VACIO_CM - distCm) / (R1_DIST_VACIO_CM - R1_DIST_LLENO_CM) * 100.0f;
+  return p < 0 ? 0 : (p > 100 ? 100 : p);
+}
+
 inline float ntuDesdeVoltaje(float v) {
   if (v >= 4.2f) return 0;  // sobre el rango de la curva: agua limpia
   float ntu = -1120.4f * v * v + 5742.3f * v - 4352.9f;
@@ -44,6 +49,31 @@ inline int nivelSedimento(float ntu) {
   return ntu < SED_ALTO_NTU ? 1 : 2;
 }
 
+// Dosis de PAC (ppm) según la turbidez, interpolando la tabla de la prueba de jarras.
+// 0 = agua clara, no hace falta coagular.
+inline float pacPpm(float ntu) {
+  if (isnan(ntu) || ntu < COAG_MIN_NTU) return 0;
+  if (ntu <= PAC_TABLA_NTU[0]) return PAC_TABLA_PPM[0];
+  for (int i = 1; i < PAC_PUNTOS; i++) {
+    if (ntu <= PAC_TABLA_NTU[i]) {
+      float f = (ntu - PAC_TABLA_NTU[i - 1]) / (PAC_TABLA_NTU[i] - PAC_TABLA_NTU[i - 1]);
+      return PAC_TABLA_PPM[i - 1] + f * (PAC_TABLA_PPM[i] - PAC_TABLA_PPM[i - 1]);
+    }
+  }
+  return PAC_TABLA_PPM[PAC_PUNTOS - 1];  // tope: turbidez fuera de la tabla
+}
+inline bool pacFueraDeTabla(float ntu) { return !isnan(ntu) && ntu > PAC_TABLA_NTU[PAC_PUNTOS - 1]; }
+
+// C1·V1 = C2·V2 → V1 = C2·V2 / C1. ml de solución madre para `litros` de agua a `ppm`.
+inline float mlPac(float ppm, float litros) { return ppm * litros * 1000.0f / PAC_STOCK_PPM; }
+
+// RPM → ciclo de trabajo PWM (lazo abierto, calibrado con AGIT_RPM_MAX).
+inline int rpmAPwm(int rpm) {
+  int maxPwm = (1 << AGIT_PWM_BITS) - 1;
+  int d = (int)lroundf((float)rpm / AGIT_RPM_MAX * maxPwm);
+  return d < 0 ? 0 : (d > maxPwm ? maxPwm : d);
+}
+
 template <int N>
 class MediaMovil {
  public:
@@ -59,6 +89,158 @@ class MediaMovil {
  private:
   float datos_[N] = {};
   int pos_ = 0, n_ = 0;
+};
+
+// ---------- Coagulación y floculación con PAC en R1 ----------
+//  agua nueva → MIDIENDO (agita y mide) → DOSIFICANDO (PAC) → COAGULANDO (rápido)
+//    → FLOCULANDO (lento) → SEDIMENTANDO (quieto) → LISTA → la purga saca el lodo
+//  agua clara (< COAG_MIN_NTU) → LISTA sin PAC
+enum class EstadoCoag { ESPERA, MIDIENDO, DOSIFICANDO, COAGULANDO, FLOCULANDO, SEDIMENTANDO, LISTA, SIN_PAC };
+
+inline const char* textoCoag(EstadoCoag e) {
+  switch (e) {
+    case EstadoCoag::ESPERA:       return "Agua por tratar";
+    case EstadoCoag::MIDIENDO:     return "Midiendo R1";
+    case EstadoCoag::DOSIFICANDO:  return "Dosificando PAC";
+    case EstadoCoag::COAGULANDO:   return "Coagulando";
+    case EstadoCoag::FLOCULANDO:   return "Floculando";
+    case EstadoCoag::SEDIMENTANDO: return "Sedimentando";
+    case EstadoCoag::SIN_PAC:      return "Falta PAC";
+    default:                       return "R1 tratada";
+  }
+}
+
+class Coagulacion {
+ public:
+  EstadoCoag estado = EstadoCoag::ESPERA;
+  bool bombaPac = false;
+  int rpm = 0;
+  bool sinPac = false;        // última vez el agua no necesitó PAC
+  bool sinNivel = false;      // sin lectura de R1: se saltó la dosis
+  bool fueraTabla = false;    // turbidez mayor que la tabla: dosis tope
+  float ntuMedida = -1, ppm = 0, litrosLote = 0;
+  float mlObjetivo = 0, mlAplicados = 0, mlTotal = 0;
+  unsigned long lotes = 0;    // lotes coagulados
+
+  float mlRestantes() const {
+    float r = PAC_TANQUE_ML - (mlTotal - mlRecarga_);
+    return r < 0 ? 0 : r;
+  }
+  float pctRestante() const { return mlRestantes() / PAC_TANQUE_ML * 100.0f; }
+  void recargado() {
+    mlRecarga_ = mlTotal;
+    if (estado == EstadoCoag::SIN_PAC) estado = EstadoCoag::ESPERA;
+  }
+  // Botón "Tratar R1 ahora".
+  void iniciar() {
+    if (!ocupado()) { pendiente_ = true; estado = EstadoCoag::ESPERA; }
+  }
+  bool pendiente() const { return pendiente_; }
+  // R1 se está tratando: no purgar ni transferir.
+  bool ocupado() const {
+    return estado == EstadoCoag::MIDIENDO || estado == EstadoCoag::DOSIFICANDO ||
+           estado == EstadoCoag::COAGULANDO || estado == EstadoCoag::FLOCULANDO ||
+           estado == EstadoCoag::SEDIMENTANDO;
+  }
+  bool lista() const { return estado == EstadoCoag::LISTA && !pendiente_; }
+  unsigned long faltaMs(unsigned long ahora) const {
+    unsigned long d = ahora - desde_, total;
+    switch (estado) {
+      case EstadoCoag::MIDIENDO:     total = COAG_MEDIR_MS; break;
+      case EstadoCoag::COAGULANDO:   total = COAG_RAPIDA_MS; break;
+      case EstadoCoag::FLOCULANDO:   total = COAG_LENTA_MS; break;
+      case EstadoCoag::SEDIMENTANDO: total = COAG_SEDIM_MS; break;
+      default:                       return 0;
+    }
+    return d < total ? total - d : 0;
+  }
+
+  // ntu: turbidez de R1; nivel/nivelOk: ultrasonido de R1; bloqueado: purga o transferencia activas.
+  void actualizar(float ntu, float nivel, bool nivelOk, bool hayAgua, bool bloqueado, unsigned long ahora) {
+    if (bombaPac) {
+      float ml = (ahora - tUltimo_) / 60000.0f * PAC_CAUDAL_ML_MIN;
+      mlAplicados += ml;
+      mlTotal += ml;
+    }
+    tUltimo_ = ahora;
+
+    // ¿Entró agua nueva? Se compara con el nivel más bajo desde el último lote.
+    if (nivelOk && !ocupado()) {
+      if (!hayBase_ || nivel < base_) { base_ = nivel; hayBase_ = true; }
+      if (nivel >= base_ + R1_SUBIDA_LOTE) {
+        pendiente_ = true;
+        base_ = nivel;
+        if (estado == EstadoCoag::LISTA) estado = EstadoCoag::ESPERA;
+      }
+    }
+
+    if (!hayAgua && ocupado()) estado = EstadoCoag::ESPERA;  // se vació: reintenta luego
+
+    switch (estado) {
+      case EstadoCoag::ESPERA:
+        if (pendiente_ && hayAgua && !bloqueado) cambiar(EstadoCoag::MIDIENDO, ahora);
+        break;
+      case EstadoCoag::MIDIENDO:
+        if (ahora - desde_ >= COAG_MEDIR_MS) calcularDosis(ntu, nivel, nivelOk, ahora);
+        break;
+      case EstadoCoag::DOSIFICANDO:
+        if (mlAplicados >= mlObjetivo) cambiar(EstadoCoag::COAGULANDO, ahora);
+        else if (mlRestantes() <= 0) estado = EstadoCoag::SIN_PAC;
+        break;
+      case EstadoCoag::COAGULANDO:
+        if (ahora - desde_ >= COAG_RAPIDA_MS) cambiar(EstadoCoag::FLOCULANDO, ahora);
+        break;
+      case EstadoCoag::FLOCULANDO:
+        if (ahora - desde_ >= COAG_LENTA_MS) cambiar(EstadoCoag::SEDIMENTANDO, ahora);
+        break;
+      case EstadoCoag::SEDIMENTANDO:
+        if (ahora - desde_ >= COAG_SEDIM_MS) { lotes++; terminarLote(nivel, nivelOk); }
+        break;
+      default:
+        break;
+    }
+
+    bombaPac = estado == EstadoCoag::DOSIFICANDO;
+    switch (estado) {
+      case EstadoCoag::MIDIENDO:
+      case EstadoCoag::DOSIFICANDO:
+      case EstadoCoag::COAGULANDO: rpm = AGIT_RPM_RAPIDA; break;
+      case EstadoCoag::FLOCULANDO: rpm = AGIT_RPM_LENTA; break;
+      default:                     rpm = 0;
+    }
+  }
+
+ private:
+  bool pendiente_ = true;  // al encender no se sabe si R1 está tratada
+  bool hayBase_ = false;
+  float base_ = 0, mlRecarga_ = 0;
+  unsigned long desde_ = 0, tUltimo_ = 0;
+
+  void cambiar(EstadoCoag e, unsigned long ahora) { estado = e; desde_ = ahora; }
+
+  void terminarLote(float nivel, bool nivelOk) {
+    pendiente_ = false;
+    estado = EstadoCoag::LISTA;
+    if (nivelOk) base_ = nivel;
+  }
+
+  void calcularDosis(float ntu, float nivel, bool nivelOk, unsigned long ahora) {
+    ntuMedida = ntu;
+    ppm = pacPpm(ntu);
+    fueraTabla = pacFueraDeTabla(ntu);
+    sinPac = ppm <= 0;
+    sinNivel = !nivelOk;
+    if (sinPac || sinNivel) {  // agua clara, o no se pueden calcular los litros
+      mlObjetivo = 0;
+      terminarLote(nivel, nivelOk);
+      return;
+    }
+    litrosLote = nivel / 100.0f * R1_CAPACIDAD_L;
+    mlObjetivo = mlPac(ppm, litrosLote);
+    mlAplicados = 0;
+    if (mlRestantes() < mlObjetivo) { estado = EstadoCoag::SIN_PAC; return; }
+    cambiar(EstadoCoag::DOSIFICANDO, ahora);
+  }
 };
 
 // ---------- Purga de sedimentos en R1 ----------
@@ -410,6 +592,8 @@ struct EstadoSistema {
   float ntuR2;
   bool r1Agua;
   float ntuR1;
+  bool r1NivelOk;
+  const Coagulacion* coag;
   const ControlPurga* purga;
   const ControlBomba* transfer;
   const Cloracion* cloro;
@@ -423,10 +607,14 @@ inline Diagnostico diagnosticar(const EstadoSistema& s) {
   if (s.r2 >= NIVEL_SEGURIDAD) return {ROJO, "R2: desborde"};
   if (s.r2 <= NIVEL_CRITICO) return {ROJO, "R2 casi vacio"};
   if (c == EstadoCloro::SIN_CLORO) return {ROJO, "Sin cloro"};
+  if (s.coag->estado == EstadoCoag::SIN_PAC) return {ROJO, "Sin PAC"};
   if (c == EstadoCloro::TURBIA || !claraParaClorar(s.ntuR2)) return {AMARILLO, "R2 turbia:filtro"};
   if (c == EstadoCloro::PH_FUERA) return {AMARILLO, "pH alto:corregir"};
   if (rangoPh(s.ph) == 0) return {AMARILLO, "pH bajo (acido)"};
   if (s.cloro->pctRestante() < GOTERO_AVISO_PCT) return {AMARILLO, "Recargar cloro"};
+  if (s.coag->pctRestante() < PAC_AVISO_PCT) return {AMARILLO, "Recargar PAC"};
+  if (!s.r1NivelOk) return {AMARILLO, "Falla nivel R1"};
+  if (s.coag->ocupado()) return {AMARILLO, textoCoag(s.coag->estado)};
   if (s.purga->encendida || s.purga->estado != EstadoPurga::LIMPIO) return {AMARILLO, "Purgando lodo"};
   if (!s.r1Agua) return {AMARILLO, "R1 sin agua"};
   if (nivelSedimento(s.ntuR1) > 0) return {AMARILLO, "R1 con lodo"};

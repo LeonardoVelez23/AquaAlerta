@@ -1,5 +1,6 @@
 // AquaAlerta – tratamiento de agua en dos reservorios:
-//   R1: mide sedimentos y los purga → bomba + filtro → R2: mide pH y dosifica cloro.
+//   R1: coagula con PAC, flocula, sedimenta y purga el lodo → bomba + filtro →
+//   R2: mide pH y dosifica cloro.
 // ODS 6 (agua limpia) · secundario ODS 13 (resiliencia ante sequía).
 #include <Arduino.h>
 #include <LiquidCrystal_I2C.h>
@@ -15,25 +16,30 @@
 LiquidCrystal_I2C lcd(LCD_ADDR, 16, 2);
 WebServer server(80);
 
+Coagulacion coag;
 ControlPurga purga;
 ControlBomba transfer;
 Cloracion cloro;
-MediaMovil<MUESTRAS_PROMEDIO> mNivel, mNtu, mNtu2, mPh;
+MediaMovil<MUESTRAS_PROMEDIO> mNivel, mNivel1, mNtu, mNtu2, mPh;
 
 struct {
   float ntuR1 = NAN;        // sedimentos en R1
   bool r1Agua = true;       // flotador de R1
+  float nivelR1 = NAN;      // % de R1 (ultrasonido)
+  bool r1NivelOk = false;
   float distancia = NAN, nivel = NAN, ph = NAN, ntuR2 = NAN;  // R2
   bool r2Ok = false;
+  float litrosR1() const { return r1NivelOk ? nivelR1 / 100 * R1_CAPACIDAD_L : 0; }
   float litrosR2() const { return r2Ok ? nivel / 100 * R2_CAPACIDAD_L : 0; }
 } m;
 int fallosNivel = FALLOS_NIVEL_ALERTA;  // hasta la primera lectura válida
+int fallosNivelR1 = FALLOS_NIVEL_ALERTA;
 const char* motivoR1 = "";              // por qué R1 no entrega agua
 
 Diagnostico diag = {VERDE, "Iniciando"};
 bool modoAP = false;
 
-// bits de estado: 1 purga, 2 transferencia, 4 goteo
+// bits de estado: 1 purga, 2 transferencia, 4 goteo, 8 agitador, 16 bomba PAC
 struct Punto { uint8_t nivel; uint16_t ntu; uint16_t ntu2; uint8_t ph10; uint8_t estado; };
 Punto historial[HISTORIAL_PUNTOS];
 int histInicio = 0, histCantidad = 0;
@@ -42,23 +48,23 @@ unsigned long tLectura = 0, tPantalla = 0, tHistorial = 0, silencioHasta = 0;
 int pantalla = 0;
 
 // ---------- Sensores ----------
-float pingCm() {
-  digitalWrite(PIN_TRIG_R2, LOW);
+float pingCm(int trig, int echo) {
+  digitalWrite(trig, LOW);
   delayMicroseconds(2);
-  digitalWrite(PIN_TRIG_R2, HIGH);
+  digitalWrite(trig, HIGH);
   delayMicroseconds(10);
-  digitalWrite(PIN_TRIG_R2, LOW);
-  unsigned long us = pulseIn(PIN_ECHO_R2, HIGH, 30000);  // ~5 m máximo
+  digitalWrite(trig, LOW);
+  unsigned long us = pulseIn(echo, HIGH, 30000);  // ~5 m máximo
   float cm = us / 58.0f;
   return (us == 0 || cm < DIST_MIN_VALIDA_CM || cm > DIST_MAX_VALIDA_CM) ? NAN : cm;
 }
 
 // Mediana de varios pings: un eco falso (pared, gota) no mueve el resultado.
-float distanciaMediana() {
+float distanciaMediana(int trig, int echo) {
   float v[PINGS_POR_LECTURA];
   int n = 0;
   for (int i = 0; i < PINGS_POR_LECTURA; i++) {
-    float d = pingCm();
+    float d = pingCm(trig, echo);
     if (!isnan(d)) v[n++] = d;
     delay(30);  // deja apagar los ecos del ping anterior
   }
@@ -77,8 +83,16 @@ float voltios(int pin, float divisor) {
 void leerSensores() {
   m.ntuR1 = mNtu.agregar(ntuDesdeVoltaje(voltios(PIN_TURB_R1, TURB_DIVISOR)));
   m.r1Agua = digitalRead(PIN_FLOTADOR_R1) == LOW;
+  float d1 = distanciaMediana(PIN_TRIG_R1, PIN_ECHO_R1);
+  if (isnan(d1)) {
+    if (++fallosNivelR1 == FALLOS_NIVEL_ALERTA) Serial.println("R1: sensor de nivel sin respuesta");
+  } else {
+    fallosNivelR1 = 0;
+    m.nivelR1 = mNivel1.agregar(nivelR1DesdeDistancia(d1));
+  }
+  m.r1NivelOk = fallosNivelR1 < FALLOS_NIVEL_ALERTA;
 
-  float d = distanciaMediana();
+  float d = distanciaMediana(PIN_TRIG_R2, PIN_ECHO_R2);
   if (isnan(d)) {
     if (++fallosNivel == FALLOS_NIVEL_ALERTA) Serial.println("R2: sensor de nivel sin respuesta");
   } else {
@@ -96,6 +110,7 @@ void leerSensores() {
 // ¿R1 puede entregar agua a R2?
 bool r1Disponible() {
   if (!m.r1Agua) { motivoR1 = "R1 sin agua"; return false; }
+  if (!coag.lista()) { motivoR1 = coag.estado == EstadoCoag::LISTA ? "Agua por tratar" : textoCoag(coag.estado); return false; }
   if (!purga.sinSedimentos(m.ntuR1)) { motivoR1 = "R1 con sedimentos"; return false; }
   if (cloro.ocupado()) { motivoR1 = "R2 clorando"; return false; }
   motivoR1 = "";
@@ -104,6 +119,7 @@ bool r1Disponible() {
 
 // ---------- Salidas ----------
 void aplicarRele(int pin, bool on) { digitalWrite(pin, on == RELE_ACTIVO_ALTO ? HIGH : LOW); }
+void aplicarAgitador(int rpm) { ledcWrite(PIN_AGITADOR, rpmAPwm(rpm)); }
 
 void actualizarLeds() {
   digitalWrite(PIN_LED_VERDE, diag.alerta == VERDE);
@@ -123,7 +139,7 @@ const char* textoSedimento(float ntu) {
 }
 
 void mostrarLcd(unsigned long ahora) {
-  char a[17], b[17];
+  char a[24], b[24];  // el LCD muestra 16: se cortan abajo
   switch (pantalla) {
     case 0:
       snprintf(a, sizeof a, "R1 sed %-5s%4.0f", textoSedimento(m.ntuR1), m.ntuR1);
@@ -148,10 +164,21 @@ void mostrarLcd(unsigned long ahora) {
         snprintf(b, sizeof b, "Faltan %lus", cloro.faltaMs(ahora) / 1000);
       else snprintf(b, sizeof b, "Cloro %3.0f%%", cloro.pctRestante());
       break;
+    case 4:
+      snprintf(a, sizeof a, "%s", textoCoag(coag.estado));
+      if (coag.estado == EstadoCoag::DOSIFICANDO)
+        snprintf(b, sizeof b, "PAC %.0f/%.0fml", coag.mlAplicados, coag.mlObjetivo);
+      else if (coag.faltaMs(ahora) > 0)
+        snprintf(b, sizeof b, "%3drpm falta%3lus", coag.rpm, coag.faltaMs(ahora) / 1000);
+      else if (m.r1NivelOk)
+        snprintf(b, sizeof b, "R1 %3.0f%% PAC%3.0f%%", m.nivelR1, coag.pctRestante());
+      else snprintf(b, sizeof b, "R1 nivel: ERROR");
+      break;
     default:
       snprintf(a, sizeof a, "%s", modoAP ? "Red: " AP_SSID : "WiFi conectado");
       snprintf(b, sizeof b, "%s", (modoAP ? WiFi.softAPIP() : WiFi.localIP()).toString().c_str());
   }
+  a[16] = b[16] = 0;
   lcd.clear();
   lcd.print(a);
   lcd.setCursor(0, 1);
@@ -162,7 +189,8 @@ void mostrarLcd(unsigned long ahora) {
 void guardarHistorial() {
   Punto p = {(uint8_t)(m.r2Ok ? lroundf(m.nivel) : 0), (uint16_t)lroundf(isnan(m.ntuR1) ? 0 : m.ntuR1),
              (uint16_t)lroundf(isnan(m.ntuR2) ? 0 : m.ntuR2), (uint8_t)lroundf(isnan(m.ph) ? 0 : m.ph * 10),
-             (uint8_t)(purga.encendida | transfer.encendida << 1 | cloro.goteoAbierto << 2)};
+             (uint8_t)(purga.encendida | transfer.encendida << 1 | cloro.goteoAbierto << 2 |
+                       (coag.rpm > 0) << 3 | coag.bombaPac << 4)};
   if (histCantidad == HISTORIAL_PUNTOS) histInicio = (histInicio + 1) % HISTORIAL_PUNTOS;
   else histCantidad++;
   historial[(histInicio + histCantidad - 1) % HISTORIAL_PUNTOS] = p;
@@ -178,7 +206,7 @@ const char* nombrePurga(EstadoPurga e) {
 void apiEstado() {
   unsigned long ahora = millis();
   String j;
-  j.reserve(1400);
+  j.reserve(2000);
   char buf[480];
   auto add = [&](const char* fmt, auto... args) {
     snprintf(buf, sizeof buf, fmt, args...);
@@ -186,8 +214,18 @@ void apiEstado() {
   };
   add("{\"alerta\":\"%s\",\"causa\":\"%s\",\"uptime_s\":%lu,",
       nombreAlerta(diag.alerta), diag.causa, ahora / 1000);
-  add("\"r1\":{\"agua\":%s,\"ntu\":%.0f,\"sedimento\":%d,\"disponible\":%s,\"motivo\":\"%s\"},",
-      tf(m.r1Agua), isnan(m.ntuR1) ? 0 : m.ntuR1, nivelSedimento(m.ntuR1), tf(motivoR1[0] == 0), motivoR1);
+  add("\"r1\":{\"agua\":%s,\"ntu\":%.0f,\"sedimento\":%d,\"disponible\":%s,\"motivo\":\"%s\","
+      "\"nivel_ok\":%s,\"nivel\":%.1f,\"litros\":%.0f},",
+      tf(m.r1Agua), isnan(m.ntuR1) ? 0 : m.ntuR1, nivelSedimento(m.ntuR1), tf(motivoR1[0] == 0), motivoR1,
+      tf(m.r1NivelOk), m.r1NivelOk ? m.nivelR1 : 0, m.litrosR1());
+  add("\"coag\":{\"estado\":\"%s\",\"pendiente\":%s,\"ocupado\":%s,\"falta_s\":%lu,\"rpm\":%d,\"pac_on\":%s,"
+      "\"ntu_medida\":%.0f,\"ppm\":%.0f,\"litros\":%.0f,\"ml_objetivo\":%.0f,\"ml_aplicados\":%.0f,"
+      "\"sin_pac\":%s,\"sin_nivel\":%s,\"fuera_tabla\":%s,\"lotes\":%lu,\"ml_total\":%.0f,"
+      "\"ml_restantes\":%.0f,\"pct_restante\":%.0f},",
+      textoCoag(coag.estado), tf(coag.pendiente()), tf(coag.ocupado()), coag.faltaMs(ahora) / 1000, coag.rpm,
+      tf(coag.bombaPac), coag.ntuMedida, coag.ppm, coag.litrosLote, coag.mlObjetivo, coag.mlAplicados,
+      tf(coag.sinPac), tf(coag.sinNivel), tf(coag.fueraTabla), coag.lotes, coag.mlTotal, coag.mlRestantes(),
+      coag.pctRestante());
   add("\"purga\":{\"on\":%s,\"auto\":%s,\"estado\":\"%s\",\"pulso\":%d,\"max_pulsos\":%d,\"motivo\":\"%s\","
       "\"falla\":%s,\"purgas\":%lu,\"seg\":%lu,\"litros\":%.0f,\"ntu_antes\":%.0f,\"ntu_despues\":%.0f},",
       tf(purga.encendida), tf(purga.automatico), nombrePurga(purga.estado), purga.pulso, PURGA_MAX_PULSOS,
@@ -209,10 +247,11 @@ void apiEstado() {
       cloro.gotasAplicadas, cloro.gotasTotal, cloro.phDosis, cloro.gotasPorLitroUsadas, cloro.dosis,
       cloro.faltaMs(ahora) / 1000, cloro.mlRestantes(), cloro.pctRestante(), GOTAS_POR_ML);
   add("\"cfg\":{\"sed_medio\":%.0f,\"sed_limpio\":%.0f,\"ph_min\":%.1f,\"ph_opt\":%.1f,\"ph_max\":%.1f,"
-      "\"gotas_l\":%.1f,\"turb_max\":%.0f,\"turb_ideal\":%.0f,\"r2_on\":%.0f,\"r2_off\":%.0f}}",
+      "\"gotas_l\":%.1f,\"turb_max\":%.0f,\"turb_ideal\":%.0f,\"r2_on\":%.0f,\"r2_off\":%.0f,"
+      "\"coag_min\":%.0f,\"pac_stock\":%.0f,\"rpm_rapida\":%d,\"rpm_lenta\":%d}}",
       SED_MEDIO_NTU, SED_LIMPIO_NTU, PH_MIN, PH_OPTIMO_MAX, PH_MAX, CLORO_GOTAS_POR_LITRO,
-      TURB_R2_MAX_CLORO, TURB_R2_IDEAL,
-      R2_ENCENDER, R2_APAGAR);
+      TURB_R2_MAX_CLORO, TURB_R2_IDEAL, R2_ENCENDER, R2_APAGAR, COAG_MIN_NTU, PAC_STOCK_PPM,
+      AGIT_RPM_RAPIDA, AGIT_RPM_LENTA);
   server.send(200, "application/json", j);
 }
 
@@ -247,6 +286,8 @@ void apiControl() {
   else if (a == "reset") { purga.reiniciarFalla(); transfer.reiniciarFalla(); }
   else if (a == "recarga") cloro.recargado(ahora);
   else if (a == "clorar") cloro.clorarTodo(m.litrosR2(), ahora);
+  else if (a == "tratar") coag.iniciar();
+  else if (a == "pac_recarga") coag.recargado();
   else { server.send(400, "application/json", "{\"ok\":false}"); return; }
   Serial.printf("Web: accion '%s'\n", a.c_str());
   server.send(200, "application/json", "{\"ok\":true}");
@@ -312,10 +353,14 @@ void iniciarWatchdog() {
 // ---------- Programa ----------
 void setup() {
   Serial.begin(115200);
-  for (int p : {PIN_RELE_PURGA, PIN_RELE_TRANSFER, PIN_RELE_GOTEO}) {
+  for (int p : {PIN_RELE_PURGA, PIN_RELE_TRANSFER, PIN_RELE_GOTEO, PIN_RELE_PAC}) {
     pinMode(p, OUTPUT);
     aplicarRele(p, false);  // primero: todo apagado
   }
+  ledcAttach(PIN_AGITADOR, AGIT_PWM_FREQ, AGIT_PWM_BITS);
+  aplicarAgitador(0);
+  pinMode(PIN_TRIG_R1, OUTPUT);
+  pinMode(PIN_ECHO_R1, INPUT);
   pinMode(PIN_TRIG_R2, OUTPUT);
   pinMode(PIN_ECHO_R2, INPUT);
   pinMode(PIN_FLOTADOR_R1, INPUT_PULLUP);
@@ -350,9 +395,24 @@ void loop() {
     leerSensores();
     unsigned long t = millis();
 
-    // 1) R1: purga de sedimentos
+    // 0) R1: coagulación con PAC (agita, dosifica, flocula, deja sedimentar)
+    EstadoCoag coAntes = coag.estado;
+    bool r1Ocupado = purga.encendida || purga.estado != EstadoPurga::LIMPIO || transfer.encendida;
+    coag.actualizar(m.ntuR1, m.nivelR1, m.r1NivelOk, m.r1Agua, r1Ocupado, t);
+    aplicarRele(PIN_RELE_PAC, coag.bombaPac);
+    aplicarAgitador(coag.rpm);
+    if (coag.estado != coAntes) {
+      Serial.printf("Coagulacion: %s", textoCoag(coag.estado));
+      if (coag.estado == EstadoCoag::DOSIFICANDO)
+        Serial.printf(" -> %.0f NTU, %.0f ppm x %.0f L = %.0f ml de PAC", coag.ntuMedida, coag.ppm,
+                      coag.litrosLote, coag.mlObjetivo);
+      Serial.println();
+    }
+
+    // 1) R1: purga de sedimentos (espera a que termine la coagulación)
     bool antes = purga.encendida;
-    aplicarRele(PIN_RELE_PURGA, purga.actualizar(m.ntuR1, m.r1Agua, transfer.encendida, t));
+    aplicarRele(PIN_RELE_PURGA, purga.actualizar(m.ntuR1, m.r1Agua,
+                                                 transfer.encendida || coag.ocupado() || coag.pendiente(), t));
     if (purga.encendida != antes) Serial.printf("Purga: %s (%s)\n", purga.encendida ? "ENCENDIDA" : "apagada", purga.motivo);
 
     // 2) Transferencia R1 → filtro → R2 (solo sin sedimentos)
@@ -379,7 +439,8 @@ void loop() {
       Serial.println();
     }
 
-    Diagnostico d = diagnosticar({m.r2Ok, m.nivel, m.ph, m.ntuR2, m.r1Agua, m.ntuR1, &purga, &transfer, &cloro});
+    Diagnostico d = diagnosticar({m.r2Ok, m.nivel, m.ph, m.ntuR2, m.r1Agua, m.ntuR1, m.r1NivelOk, &coag, &purga,
+                                  &transfer, &cloro});
     if (d.alerta != diag.alerta || strcmp(d.causa, diag.causa) != 0)
       Serial.printf("Estado: %s (%s)\n", nombreAlerta(d.alerta), d.causa);
     diag = d;
@@ -389,15 +450,15 @@ void loop() {
   if (ahora - tHistorial >= INTERVALO_HISTORIAL_MS || tHistorial == 0) {
     tHistorial = ahora;
     guardarHistorial();
-    Serial.printf("{\"ntu_r1\":%.0f,\"r1_agua\":%d,\"r2\":%.1f,\"ph\":%.2f,\"ntu_r2\":%.1f,\"purga\":%d,"
-                  "\"transfer\":%d,\"goteo\":%d,\"estado\":\"%s\"}\n",
-                  m.ntuR1, m.r1Agua, m.nivel, m.ph, m.ntuR2, purga.encendida, transfer.encendida,
-                  cloro.goteoAbierto, diag.causa);
+    Serial.printf("{\"ntu_r1\":%.0f,\"r1_agua\":%d,\"r1\":%.1f,\"coag\":\"%s\",\"rpm\":%d,\"r2\":%.1f,"
+                  "\"ph\":%.2f,\"ntu_r2\":%.1f,\"purga\":%d,\"transfer\":%d,\"goteo\":%d,\"estado\":\"%s\"}\n",
+                  m.ntuR1, m.r1Agua, m.nivelR1, textoCoag(coag.estado), coag.rpm, m.nivel, m.ph, m.ntuR2,
+                  purga.encendida, transfer.encendida, cloro.goteoAbierto, diag.causa);
   }
 
   if (ahora - tPantalla >= CAMBIO_PANTALLA_MS) {
     tPantalla = ahora;
-    pantalla = (pantalla + 1) % 5;
+    pantalla = (pantalla + 1) % 6;
     mostrarLcd(ahora);
   }
 

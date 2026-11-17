@@ -38,25 +38,6 @@
       }
     },
     {
-      "type": "wokwi-ds18b20",
-      "id": "tempAgua",
-      "top": -20,
-      "left": -320,
-      "attrs": {
-        "temperature": "22"
-      }
-    },
-    {
-      "type": "wokwi-resistor",
-      "id": "r5",
-      "top": -60,
-      "left": -260,
-      "rotate": 90,
-      "attrs": {
-        "value": "4700"
-      }
-    },
-    {
       "type": "wokwi-slide-switch",
       "id": "origen",
       "top": 80,
@@ -239,6 +220,60 @@
       "attrs": {
         "value": "1023"
       }
+    },
+    {
+      "type": "wokwi-hc-sr04",
+      "id": "ultraR1",
+      "top": -20,
+      "left": -330,
+      "attrs": {
+        "distance": "85"
+      }
+    },
+    {
+      "type": "wokwi-relay-module",
+      "id": "releP",
+      "top": 160,
+      "left": 740,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-led",
+      "id": "ledP",
+      "top": 330,
+      "left": 810,
+      "attrs": {
+        "color": "orange",
+        "label": "Bomba PAC"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r8",
+      "top": 300,
+      "left": 880,
+      "attrs": {
+        "value": "220"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "ledM",
+      "top": 330,
+      "left": 960,
+      "attrs": {
+        "color": "cyan",
+        "label": "Agitador (PWM)"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r9",
+      "top": 300,
+      "left": 1030,
+      "attrs": {
+        "value": "220"
+      }
     }
   ],
   "connections": [
@@ -312,36 +347,6 @@
       "ph:SIG",
       "esp:34",
       "green",
-      []
-    ],
-    [
-      "tempAgua:VCC",
-      "esp:3V3",
-      "red",
-      []
-    ],
-    [
-      "tempAgua:GND",
-      "esp:GND.1",
-      "black",
-      []
-    ],
-    [
-      "tempAgua:DQ",
-      "esp:32",
-      "gray",
-      []
-    ],
-    [
-      "r5:1",
-      "esp:3V3",
-      "red",
-      []
-    ],
-    [
-      "r5:2",
-      "tempAgua:DQ",
-      "gray",
       []
     ],
     [
@@ -600,6 +605,90 @@
       "turb2:SIG",
       "esp:VP",
       "green",
+      []
+    ],
+    [
+      "ultraR1:VCC",
+      "esp:5V",
+      "red",
+      []
+    ],
+    [
+      "ultraR1:GND",
+      "esp:GND.1",
+      "black",
+      []
+    ],
+    [
+      "ultraR1:TRIG",
+      "esp:16",
+      "orange",
+      []
+    ],
+    [
+      "ultraR1:ECHO",
+      "esp:17",
+      "yellow",
+      []
+    ],
+    [
+      "releP:VCC",
+      "esp:5V",
+      "red",
+      []
+    ],
+    [
+      "releP:GND",
+      "esp:GND.2",
+      "black",
+      []
+    ],
+    [
+      "releP:IN",
+      "esp:32",
+      "orange",
+      []
+    ],
+    [
+      "releP:COM",
+      "esp:3V3",
+      "red",
+      []
+    ],
+    [
+      "releP:NO",
+      "r8:1",
+      "orange",
+      []
+    ],
+    [
+      "r8:2",
+      "ledP:A",
+      "orange",
+      []
+    ],
+    [
+      "ledP:C",
+      "esp:GND.2",
+      "black",
+      []
+    ],
+    [
+      "esp:2",
+      "r9:1",
+      "cyan",
+      []
+    ],
+    [
+      "r9:2",
+      "ledM:A",
+      "cyan",
+      []
+    ],
+    [
+      "ledM:C",
+      "esp:GND.2",
+      "black",
       []
     ]
   ],

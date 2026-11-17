@@ -10,21 +10,27 @@ desinfectada ni cuánto cloro ponerle.
 **Solución:** un ESP32 trata el agua en **dos reservorios**:
 
 ```
-            R1 · SEDIMENTOS                                      R2 · AGUA TRATADA
-  sensor de sedimentos (fondo)                                  nivel (ultrasonido) + pH
-  flotador de nivel mínimo                                                 ▲
+     R1 · COAGULACIÓN Y SEDIMENTOS                               R2 · AGUA TRATADA
+  nivel (ultrasonido) + turbidez (fondo)                        nivel (ultrasonido) + pH
+  bomba de PAC + AGITADOR                                                  ▲
+  flotador de nivel mínimo                                                 │
        │                                                                   │
        ├── bomba de PURGA ──► lodo al desagüe / riego             bomba dosificadora de cloro
        │                                                                   │
        └── (sin sedimentos) ── bomba de TRANSFERENCIA ──► FILTRO ──────────┘──► uso
 ```
 
-1. **R1 – sedimentos:** un sensor de turbidez cerca del fondo mide **cuánto
+1. **R1 – coagulación con PAC:** cuando entra agua nueva, el agitador la mezcla,
+   el sensor mide la turbidez y el sistema calcula y dosifica el **PAC**
+   (policloruro de aluminio). Luego mezcla rápido (coagulación), lento
+   (floculación) y deja reposar (sedimentación): las partículas finas se juntan
+   en flóculos que caen al fondo.
+2. **R1 – purga:** el sensor de turbidez cerca del fondo mide **cuánto
    sedimento hay**. Si hay, la **bomba de purga** lo saca por pulsos.
-2. **R1 → filtro → R2:** cuando R1 está **sin sedimentos**, la bomba de
+3. **R1 → filtro → R2:** cuando R1 está **tratada y sin sedimentos**, la bomba de
    transferencia pasa el agua por el **filtro**, que retiene los residuos que
    quedan, hasta R2.
-3. **R2 – pH y cloro:** cuando termina de entrar el agua, espera a que se
+4. **R2 – pH y cloro:** cuando termina de entrar el agua, espera a que se
    mezcle, **mide el pH** y, según el pH y los **litros que entraron**, aplica
    las **gotas de cloro** necesarias. Después cuenta el tiempo de contacto y
    marca **"Agua lista"**.
@@ -38,6 +44,9 @@ en su **propia red WiFi** si en la casa no hay internet.
 |---|---|---|
 | Sensor de turbidez SEN0189 cerca del fondo de R1 · en Wokwi potenciómetro `turb` | Cantidad de sedimentos | GPIO 35 |
 | Flotador de nivel mínimo en R1 · en Wokwi interruptor deslizante | ¿R1 tiene agua? (protege las bombas) | GPIO 19 |
+| JSN-SR04T en R1 · en Wokwi HC-SR04 `ultraR1` | Litros de R1 (para la dosis de PAC) y llegada de agua nueva | TRIG 16 / ECHO 17 |
+| Relé + bomba dosificadora de PAC · en Wokwi LED naranja | Coagulante | GPIO 32 |
+| Motor DC con paleta + driver/MOSFET (PWM) · en Wokwi LED cian (brillo = velocidad) | Agitador: mezcla rápida y lenta | GPIO 2 |
 | Relé + bomba de purga (fondo de R1) · en Wokwi LED azul | Saca el lodo | GPIO 23 |
 | Relé + bomba de transferencia + filtro · en Wokwi LED morado | R1 → filtro → R2 | GPIO 33 |
 | JSN-SR04T (impermeable) en R2 · en Wokwi HC-SR04 `ultra` | Nivel y litros de R2 | TRIG 5 / ECHO 18 |
@@ -46,12 +55,57 @@ en su **propia red WiFi** si en la casa no hay internet.
 | Relé + bomba dosificadora peristáltica (o electroválvula de goteo) · en Wokwi LED blanco | Gotas de cloro | GPIO 13 |
 | LED verde / amarillo / rojo | Semáforo | 26 / 27 / 14 |
 | Buzzer | Alarma en rojo | GPIO 25 |
-| LCD 16x2 I2C | 5 pantallas: R1, R2+pH, bombas, cloro, red | SDA 21 / SCL 22 |
+| LCD 16x2 I2C | 6 pantallas: R1, R2+pH, bombas, cloro, coagulación, red | SDA 21 / SCL 22 |
 | Pulsador | Silencia 60 s y reinicia fallas | GPIO 4 |
 
 ## Cómo funciona cada etapa
 
-### 1. Sedimentos y purga en R1
+### 1. Coagulación y floculación con PAC en R1
+
+Es lo mismo que hace una planta potabilizadora, en pequeño. Se activa cada vez
+que R1 sube al menos 5 % (entró agua nueva), al encender el equipo o con el
+botón *Tratar R1 ahora*:
+
+| Fase | Agitador | Tiempo (real) | Tiempo (simulación) |
+|---|---|---|---|
+| Homogeneizar y medir turbidez | 150 RPM | 30 s | 5 s |
+| Dosificar PAC | 150 RPM | según los ml | según los ml |
+| Coagulación (mezcla rápida) | 140–160 RPM | 3–5 min | 15 s |
+| Floculación (mezcla lenta) | 40 RPM | 10–15 min | 20 s |
+| Sedimentación (reposo) | quieto | 30 min | 30 s |
+
+**Dosis por dilución:** C1·V1 = C2·V2, despejado como **V1 = C2·V2 / C1**:
+- C1 = concentración de la solución madre de PAC (`PAC_STOCK_PPM`, 10 000 ppm = 1 %).
+- C2 = dosis en el agua, en ppm, según la turbidez medida.
+- V2 = litros de R1, medidos con el ultrasonido.
+- Ejemplo: 200 ppm en 500 ml con solución al 1 % → 200 × 500 / 10 000 = **10 ml**.
+
+**Turbidez → dosis** (`PAC_TABLA_NTU` / `PAC_TABLA_PPM`), interpolando entre puntos:
+
+| Turbidez | Dosis de PAC |
+|---|---|
+| menos de 10 NTU | sin PAC (agua clara) |
+| 10 NTU | 20 ppm |
+| 20 NTU (época seca) | 30 ppm |
+| 100 NTU (lluvia) | 200 ppm (tope) |
+
+> ⚠ **Valores provisionales**, tomados de las notas del equipo. La dosis
+> correcta **depende del agua** y se obtiene con una **prueba de jarras**: varios
+> vasos con la misma agua, cada uno con una dosis distinta, mismas mezclas y
+> reposo; se elige la dosis menor que deja el agua más clara. Con más
+> turbidez que la tabla, usa la dosis tope y la página pide hacer la prueba de
+> jarras. No hay que pasarse: el PAC de más deja aluminio en el agua.
+
+- En un aljibe real (cientos de litros) conviene una solución madre al 10 %:
+  con la del 1 %, 300 L a 200 ppm necesitan 6 L de solución.
+- Lleva la cuenta del PAC del bidón ("Recargar PAC" bajo 20 %, "Sin PAC" en
+  rojo). Después de rellenar, pulsar *Recargué el PAC*.
+- Sin lectura de nivel en R1 no dosifica (no sabe cuántos litros hay): avisa
+  "Falla nivel R1" y sigue con la purga y el filtro.
+- Mientras coagula, no purga ni transfiere: el agua tiene que estar quieta para
+  que caigan los flóculos.
+
+### 2. Sedimentos y purga en R1
 
 | Turbidez en el fondo | Sedimentos | Qué hace |
 |---|---|---|
@@ -71,9 +125,9 @@ en su **propia red WiFi** si en la casa no hay internet.
 - En la simulación los tiempos son cortos; con un reservorio real conviene
   usar 30 s / 5 min y hasta 8 pulsos (`include/config.h`).
 
-### 2. Transferencia (R1 → filtro → R2)
+### 3. Transferencia (R1 → filtro → R2)
 - Rellena R2 cuando baja del **50 %** y para al **90 %**.
-- Solo funciona si R1 **no tiene sedimentos**, tiene agua y R2 no se está
+- Solo funciona si R1 **ya fue coagulada**, **no tiene sedimentos**, tiene agua y R2 no se está
   clorando (R2 tiene que estar quieto para medir el pH).
 - Si con la bomba encendida R2 no sube, da la falla **"Filtro tapado?"**: hay
   que limpiar el filtro o revisar la bomba o la manguera.
@@ -82,7 +136,7 @@ en su **propia red WiFi** si en la casa no hay internet.
   20 s** (en real, 3 min), apaga la bomba con la falla **"Filtro no limpia"**:
   el filtro está roto, saturado o mal colocado.
 
-### 3. pH y gotas de cloro en R2
+### 4. pH y gotas de cloro en R2
 
 Cuando termina de entrar agua:
 
@@ -148,8 +202,8 @@ filtro que falla, pero no certifica el límite de la OMS. Para eso:
 | Color | Cuándo |
 |---|---|
 | 🟢 Verde | "Agua lista": R2 clorada y con el tiempo de contacto cumplido |
-| 🟡 Amarillo | R2 turbia: filtro, pH alto: corregir, pH bajo (ácido), recargar cloro, purgando lodo, R1 sin agua, R1 con lodo, midiendo pH, aplicando cloro, clorando: espere, R2 nivel bajo |
-| 🔴 Rojo + buzzer | Falla del sensor de R2, "Filtro tapado?", "Filtro no limpia", "Purga sin efecto", R2 ≥ 95 %, R2 ≤ 10 %, sin cloro |
+| 🟡 Amarillo | R2 turbia: filtro, pH alto: corregir, pH bajo (ácido), recargar cloro, recargar PAC, falla nivel R1, midiendo R1, dosificando PAC, coagulando, floculando, sedimentando, purgando lodo, R1 sin agua, R1 con lodo, midiendo pH, aplicando cloro, clorando: espere, R2 nivel bajo |
+| 🔴 Rojo + buzzer | Falla del sensor de R2, "Filtro tapado?", "Filtro no limpia", "Purga sin efecto", R2 ≥ 95 %, R2 ≤ 10 %, sin cloro, sin PAC |
 
 ## Página web
 
@@ -157,22 +211,25 @@ Al arrancar intenta conectarse al WiFi de `include/secrets.h`. Si no puede en
 10 s, crea la red **AquaAlerta** (contraseña en `secrets.h`) y la página queda en
 <http://192.168.4.1>. La IP se ve en el LCD. No usa librerías de internet.
 
-- R1 con la capa de lodo según los sedimentos, R2 con su nivel, y los íconos
-  purga → bomba → filtro, que se encienden cuando trabajan.
+- R1 con su nivel, sus litros y la capa de lodo, R2 con su nivel, y los íconos
+  PAC → agitador → purga → bomba → filtro, que se encienden cuando trabajan.
+- Tarjeta de coagulación: etapa y tiempo restante, turbidez medida, dosis en
+  ppm, ml de PAC aplicados, RPM del agitador y PAC que queda en el bidón.
 - Barra de pH (0–14) con la zona verde, la tabla de pH, las gotas del agua
   por clorar, la última dosis (pH, gotas/L, gotas, ml) y el cloro restante.
 - Turbidez de R2 (apta para clorar o no) y turbidez R1 → R2, que muestra cuánto limpia el filtro.
 - Gráfico de los últimos 30 min: nivel de R2, sedimentos de R1, turbidez de R2, pH, y franjas
-  de purga, transferencia y goteo.
+  de agitador/PAC, purga, transferencia y goteo.
 - Control con PIN: purga y transferencia (automático / encender / apagar),
-  reiniciar fallas, *Clorar todo R2* y *Recargué el cloro*.
+  reiniciar fallas, *Tratar R1 ahora*, *Recargué el PAC*, *Clorar todo R2* y *Recargué el cloro*.
 - API JSON: `GET /api/estado`, `GET /api/historial`, `POST /api/control`
-  (`accion=p_auto|p_on|p_off|t_auto|t_on|t_off|reset|clorar|recarga`, `pin=…`).
+  (`accion=p_auto|p_on|p_off|t_auto|t_on|t_off|reset|clorar|recarga|tratar|pac_recarga`, `pin=…`).
 
 ## Cómo se mide (evaluación)
 
 | Métrica | Cómo obtenerla |
 |---|---|
+| **Eficacia del PAC** | Prueba de jarras: turbidez del agua cruda y después de 30 min de reposo, con y sin PAC. La página muestra la turbidez medida, la dosis y los ml usados por lote. |
 | **Eficacia de la purga** | La página muestra la turbidez del fondo antes y después de cada purga (ej. 180 → 15 NTU), y los litros usados. Probar con agua con 1, 2 y 5 cucharadas de tierra por litro. |
 | **Eficacia del filtro** | Turbidez R1 → R2 en la página. Verificar el agua de R2 con el tubo de turbidez (¿se ve el disco con el tubo lleno?). |
 | **Error del nivel de R2** | Llenar R2 a 5–6 alturas, medir con regla y comparar con la página. Reportar error promedio y máximo. |
@@ -190,7 +247,15 @@ Al arrancar intenta conectarse al WiFi de `include/secrets.h`. Si no puede en
 1. `pio run`
 2. `F1` → **Wokwi: Start Simulator**
 3. Abrir <http://localhost:8180> (Wokwi reenvía el puerto 80 del ESP32).
-4. Recorrido sugerido. Al inicio R1 está sin sedimentos, R2 al ~27 % y el pH ≈ 7,1:
+4. Recorrido sugerido. Al inicio R1 está al ~20 % (≈ 100 L) y sin sedimentos, R2 al ~27 % y el pH ≈ 7,1:
+   - Al encender, R1 se trata: **agitador (LED cian)** 5 s midiendo; como el
+     agua está clara, no usa PAC y queda "R1 tratada".
+   - Para ver el PAC: pon `turb` cerca de la mitad (≈ 60 NTU) y pulsa
+     *Tratar R1 ahora* (o baja la distancia de `ultraR1` 5 cm: entra agua
+     nueva). Verás **"Dosificando PAC" (LED naranja)** con los ml calculados,
+     **"Coagulando"** (LED cian fuerte, 150 RPM), **"Floculando"** (LED cian
+     tenue, 40 RPM) y **"Sedimentando"**. Después arranca la purga porque el
+     fondo sigue turbio: sube `turb` para que termine.
    - Arranca la **transferencia (LED morado)**. Como en la simulación el agua
      no sube sola, baja poco a poco la distancia de `ultra` (R2 se llena). Con
      ≤ 32 cm (90 %) se apaga.
@@ -214,6 +279,15 @@ Al arrancar intenta conectarse al WiFi de `include/secrets.h`. Si no puede en
   succión de la purga. La parte superior del sensor no es sumergible: montarlo
   en un tubo sellado con la punta hacia abajo. Salida de hasta 4,5 V → divisor
   10 kΩ / 20 kΩ.
+- **Agitador:** motor DC de 12 V con una paleta (o un motor de batidora), controlado
+  por PWM desde el GPIO 2 con un MOSFET logic-level (IRLZ44N) o un driver L298N,
+  con diodo en el motor. El PWM no mide las RPM: medir las RPM al 100 % (tacómetro
+  o app del celular con una marca en el eje) y ponerlas en `AGIT_RPM_MAX`.
+- **Bomba de PAC:** peristáltica o de diafragma de 12 V con la manguera en el
+  bidón de solución madre. Medir los ml que saca en 1 min y ponerlos en
+  `PAC_CAUDAL_ML_MIN`. Que caiga cerca del agitador.
+- **JSN-SR04T en R1**, en la tapa, igual que el de R2 (`R1_DIST_*`, `R1_CAPACIDAD_L`).
+  ECHO 5 V → divisor 1 kΩ / 2 kΩ → GPIO 17.
 - **Bomba de purga** con la succión en el punto más bajo del fondo (ideal: fondo
   en pendiente o cónico). La salida va a desagüe o a riego.
 - **Bomba de transferencia** con la succión a 10–15 cm **sobre el fondo**, para
@@ -240,8 +314,8 @@ Al arrancar intenta conectarse al WiFi de `include/secrets.h`. Si no puede en
 ## Estructura
 
 ```
-include/config.h    pines, umbrales de sedimentos, dosis de cloro, rangos de pH, tiempos
-include/control.h   lógica pura: purga, transferencia, cloración por pH y semáforo
+include/config.h    pines, dosis de PAC, umbrales de sedimentos, dosis de cloro, rangos de pH, tiempos
+include/control.h   lógica pura: coagulación, purga, transferencia, cloración por pH y semáforo
 include/pagina.h    página web (HTML/CSS/JS embebido)
 src/main.cpp        sensores, relés, LCD, WiFi/AP y servidor web
 diagram.json        circuito de Wokwi
