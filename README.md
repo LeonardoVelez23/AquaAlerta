@@ -225,6 +225,23 @@ Al arrancar intenta conectarse al WiFi de `include/secrets.h`. Si no puede en
 - API JSON: `GET /api/estado`, `GET /api/historial`, `POST /api/control`
   (`accion=p_auto|p_on|p_off|t_auto|t_on|t_off|reset|clorar|recarga|tratar|pac_recarga`, `pin=…`).
 
+### Red de aljibes (`/panel`, demostración de fase 2)
+
+<http://192.168.4.1/panel> (enlace "Red de aljibes" en la página) muestra cómo
+se vería AquaAlerta instalado en varios aljibes: mapa esquemático, resumen
+(aljibes en línea, agua segura, alertas, litros tratados, personas
+abastecidas a 20 L/día, insumos por reponer), tabla y detalle con gráficos.
+
+- **Solo el aljibe 1 es real** (EN VIVO): lee `/api/estado` y `/api/historial`
+  de este ESP32. Los otros 5 son **SIMULADOS**, rotulados así, y muestran casos
+  que el sistema detecta: todo bien, falta PAC, filtro que no limpia, equipo
+  sin conexión y lote floculando.
+- La casilla *Mostrar solo el aljibe real* oculta los simulados.
+- En el pitch: presentarlo como la fase 2, no como equipos instalados.
+- Nombres y posiciones de los aljibes: arreglo `N` en `include/panel.h`.
+- También se abre como archivo local: `panel.html?esp=192.168.4.1` (la API
+  responde con `Access-Control-Allow-Origin: *`).
+
 ## Cómo se mide (evaluación)
 
 | Métrica | Cómo obtenerla |
@@ -250,7 +267,9 @@ Al arrancar intenta conectarse al WiFi de `include/secrets.h`. Si no puede en
 4. Recorrido sugerido. Al inicio R1 está al ~20 % (≈ 100 L) y sin sedimentos, R2 al ~27 % y el pH ≈ 7,1:
    - Al encender, R1 se trata: **agitador (LED cian)** 5 s midiendo; como el
      agua está clara, no usa PAC y queda "R1 tratada".
-   - Para ver el PAC: pon `turb` cerca de la mitad (≈ 60 NTU) y pulsa
+   - Para ver el PAC: pon `turb` a la mitad (agua muy turbia, dosis tope de
+     200 ppm; la curva del sensor es muy empinada: solo entre ~83 % y ~85 % del
+     recorrido da 60–300 NTU, y más arriba ya lee agua limpia) y pulsa
      *Tratar R1 ahora* (o baja la distancia de `ultraR1` 5 cm: entra agua
      nueva). Verás **"Dosificando PAC" (LED naranja)** con los ml calculados,
      **"Coagulando"** (LED cian fuerte, 150 RPM), **"Floculando"** (LED cian
@@ -272,6 +291,21 @@ Al arrancar intenta conectarse al WiFi de `include/secrets.h`. Si no puede en
      "Filtro no limpia".
    - Interruptor deslizante → "R1 sin agua": ninguna bomba arranca.
    - PIN por defecto: `1234`.
+
+### Prueba automática del flujo completo
+
+[scenarios/flujo-completo.yaml](scenarios/flujo-completo.yaml) recorre solo todo
+el ciclo: R1 turbia → PAC → coagulación → floculación → sedimentación → purga →
+transferencia por el filtro → R2 llena → cloro → "Agua lista". Mueve los
+potenciómetros y sensores y falla si alguna etapa no aparece en el serial.
+Necesita [wokwi-cli](https://github.com/wokwi/wokwi-cli) y un token de
+<https://wokwi.com/dashboard/ci>:
+
+```bash
+pio run
+export WOKWI_CLI_TOKEN=...
+wokwi-cli --scenario scenarios/flujo-completo.yaml --timeout 600000 .
+```
 
 ## Armado físico
 
@@ -317,6 +351,8 @@ Al arrancar intenta conectarse al WiFi de `include/secrets.h`. Si no puede en
 include/config.h    pines, dosis de PAC, umbrales de sedimentos, dosis de cloro, rangos de pH, tiempos
 include/control.h   lógica pura: coagulación, purga, transferencia, cloración por pH y semáforo
 include/pagina.h    página web (HTML/CSS/JS embebido)
+include/panel.h     panel de red de aljibes (1 real + 5 simulados), en /panel
+scenarios/          prueba automática del flujo completo en Wokwi
 src/main.cpp        sensores, relés, LCD, WiFi/AP y servidor web
 diagram.json        circuito de Wokwi
 ```

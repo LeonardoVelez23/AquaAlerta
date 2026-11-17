@@ -11,6 +11,7 @@
 #include "config.h"
 #include "control.h"
 #include "pagina.h"
+#include "panel.h"
 #include "secrets.h"
 
 LiquidCrystal_I2C lcd(LCD_ADDR, 16, 2);
@@ -252,6 +253,7 @@ void apiEstado() {
       SED_MEDIO_NTU, SED_LIMPIO_NTU, PH_MIN, PH_OPTIMO_MAX, PH_MAX, CLORO_GOTAS_POR_LITRO,
       TURB_R2_MAX_CLORO, TURB_R2_IDEAL, R2_ENCENDER, R2_APAGAR, COAG_MIN_NTU, PAC_STOCK_PPM,
       AGIT_RPM_RAPIDA, AGIT_RPM_LENTA);
+  server.sendHeader("Access-Control-Allow-Origin", "*");  // panel abierto como archivo local
   server.send(200, "application/json", j);
 }
 
@@ -267,6 +269,7 @@ void apiHistorial() {
          String(p.ntu2) + ']';
   }
   j += "]}";
+  server.sendHeader("Access-Control-Allow-Origin", "*");
   server.send(200, "application/json", j);
 }
 
@@ -314,6 +317,7 @@ void iniciarRed() {
                   WiFi.softAPIP().toString().c_str());
   }
   server.on("/", [] { server.send_P(200, "text/html; charset=utf-8", PAGINA); });
+  server.on("/panel", [] { server.send_P(200, "text/html; charset=utf-8", PANEL); });
   server.on("/api/estado", apiEstado);
   server.on("/api/historial", apiHistorial);
   server.on("/api/control", HTTP_POST, apiControl);

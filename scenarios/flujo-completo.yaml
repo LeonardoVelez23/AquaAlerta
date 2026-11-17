@@ -1,0 +1,57 @@
+# Flujo completo de AquaAlerta en Wokwi, de R1 turbia a R2 con agua lista.
+# Mueve los controles del circuito como lo haría una persona y verifica
+# en el monitor serial que cada etapa ocurra en orden.
+#
+# Ejecutar (desde la raíz del proyecto, después de `pio run`):
+#   export WOKWI_CLI_TOKEN=...   # token de https://wokwi.com/dashboard/ci
+#   wokwi-cli --scenario scenarios/flujo-completo.yaml --timeout 600000 .
+#
+# Valores del circuito al iniciar (diagram.json):
+#   R1 al 20 % (ultraR1 = 85 cm → 100 L), R2 al 27 % (ultra = 80 cm),
+#   pH ≈ 7,1, turbidez de R2 limpia, flotador de R1 con agua.
+
+name: 'AquaAlerta: flujo completo R1 -> filtro -> R2'
+version: 1
+author: AquaAlerta
+
+steps:
+  # --- Arranque ---
+  - wait-serial: 'AquaAlerta iniciada'
+
+  # Llega agua muy turbia a R1 (≈ 240 NTU → dosis tope 200 ppm ≈ 2 L de PAC
+  # para 100 L, unos 2 min de bomba). Al encender, R1 se trata.
+  # Ojo: sobre ≈ 0,85 la curva del sensor da 0 NTU (agua limpia, sin PAC).
+  - set-control:
+      part-id: turb
+      control: position
+      value: 0.835
+
+  # --- 1. Coagulación y floculación con PAC en R1 ---
+  - wait-serial: 'Coagulacion: Dosificando PAC'   # mide turbidez y litros, calcula los ml
+  - wait-serial: 'Coagulacion: Coagulando'        # mezcla rápida 150 RPM
+  - wait-serial: 'Coagulacion: Floculando'        # mezcla lenta 40 RPM
+  - wait-serial: 'Coagulacion: Sedimentando'      # agitador quieto
+  - wait-serial: 'Coagulacion: R1 tratada'
+
+  # --- 2. Purga del lodo del fondo de R1 ---
+  - wait-serial: 'Purga: ENCENDIDA'
+  # La purga sacó el lodo: el sensor del fondo vuelve a ver agua clara.
+  - set-control:
+      part-id: turb
+      control: position
+      value: 1
+  - wait-serial: 'Purga: apagada'
+
+  # --- 3. Transferencia R1 -> filtro -> R2 ---
+  - wait-serial: 'Transferencia: ENCENDIDA'
+  # R2 se llena (93 %): la bomba se apaga al pasar el 90 %.
+  - set-control:
+      part-id: ultra
+      control: distance
+      value: 30
+  - wait-serial: 'Transferencia: apagada'
+
+  # --- 4. Cloración en R2 según el pH ---
+  - wait-serial: 'Cloro: Aplicando cloro'
+  - wait-serial: 'Cloro: Clorando:espere'
+  - wait-serial: 'Cloro: Agua lista'

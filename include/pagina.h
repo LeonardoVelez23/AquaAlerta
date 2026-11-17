@@ -36,7 +36,7 @@ button{border:0;border-radius:8px;padding:9px 14px;font-weight:600;cursor:pointe
 button.sec{background:var(--sub)}input{padding:8px;border-radius:8px;border:1px solid var(--borde);width:90px;background:var(--card);color:var(--txt)}
 table{border-collapse:collapse;font-size:.85rem;margin-top:6px}td,th{padding:3px 10px 3px 0;text-align:left}
 </style></head><body>
-<header><h1>💧 AquaAlerta</h1><small id="con">conectando…</small></header>
+<header><h1>💧 AquaAlerta</h1><small><a href="/panel" style="color:var(--agua);font-weight:600;text-decoration:none">Red de aljibes ›</a> · <span id="con">conectando…</span></small></header>
 <main>
  <div id="banner" class="VERDE">Cargando…</div>
 
