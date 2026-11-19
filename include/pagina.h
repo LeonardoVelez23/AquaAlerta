@@ -39,6 +39,8 @@ table{border-collapse:collapse;font-size:.85rem;margin-top:6px}td,th{padding:3px
 <header><h1>💧 AquaAlerta</h1><small><a href="/panel" style="color:var(--agua);font-weight:600;text-decoration:none">Red de aljibes ›</a> · <span id="con">conectando…</span></small></header>
 <main>
  <div id="banner" class="VERDE">Cargando…</div>
+ <p id="aviso" hidden style="background:#fde68a;color:#78350f;padding:.5rem .8rem;border-radius:8px;margin:.5rem 0">⚠ El PIN o la clave del WiFi son los de fábrica: cambiarlos en <code>secrets.h</code>.</p>
+ <small id="modo" style="opacity:.7"></small>
 
  <div class="card"><div class="flujo">
   <div class="tq"><h3>R1 · Coagulación y sedimentos</h3>
@@ -46,6 +48,7 @@ table{border-collapse:collapse;font-size:.85rem;margin-top:6px}td,th{padding:3px
     <div class="pct" id="p1">–</div></div>
    <p><b id="l1">–</b> L · <b id="sed">–</b> · <span id="n1">–</span> NTU<br><span id="s1">–</span></p></div>
   <div class="paso">
+   <span class="ic" id="icV">🚰</span>entrada
    <span class="ic" id="icC">🧪</span>PAC
    <span class="ic" id="icM">🌀</span>agitador
    <span class="ic" id="icP">🟤</span>purga
@@ -153,6 +156,8 @@ async function estado(){
   $('xF').textContent=r1.ntu+' → '+r2.ntu.toFixed(1)+' NTU';
   $('xFt').textContent=r1.ntu>0?'−'+Math.max(0,Math.round((r1.ntu-r2.ntu)/r1.ntu*100))+' %':'';
   $('s2').textContent=C.estado+(C.falta_s>0?' · '+C.falta_s+' s':'');
+  $('icV').classList.toggle('on',r1.valvula);$('icV').title=r1.valvula_motivo;
+  $('aviso').hidden=!k.claves_defecto;$('modo').textContent=k.modo_demo?'Modo DEMO: tiempos acortados':'';
   $('icC').classList.toggle('on',K.pac_on);$('icM').classList.toggle('on',K.rpm>0);
   $('icP').classList.toggle('on',P.on);$('icB').classList.toggle('on',T.on);$('icF').classList.toggle('on',T.on);
   // coagulación

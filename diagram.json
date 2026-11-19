@@ -274,6 +274,32 @@
       "attrs": {
         "value": "220"
       }
+    },
+    {
+      "type": "wokwi-relay-module",
+      "id": "releV",
+      "top": 160,
+      "left": 560,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-led",
+      "id": "ledVR1",
+      "top": 330,
+      "left": 640,
+      "attrs": {
+        "color": "limegreen",
+        "label": "Valvula entrada R1"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r10",
+      "top": 300,
+      "left": 700,
+      "attrs": {
+        "value": "220"
+      }
     }
   ],
   "connections": [
@@ -687,6 +713,48 @@
     ],
     [
       "ledM:C",
+      "esp:GND.2",
+      "black",
+      []
+    ],
+    [
+      "releV:VCC",
+      "esp:5V",
+      "red",
+      []
+    ],
+    [
+      "releV:GND",
+      "esp:GND.2",
+      "black",
+      []
+    ],
+    [
+      "releV:IN",
+      "esp:15",
+      "green",
+      []
+    ],
+    [
+      "releV:COM",
+      "esp:3V3",
+      "red",
+      []
+    ],
+    [
+      "releV:NO",
+      "r10:1",
+      "green",
+      []
+    ],
+    [
+      "r10:2",
+      "ledVR1:A",
+      "green",
+      []
+    ],
+    [
+      "ledVR1:C",
       "esp:GND.2",
       "black",
       []

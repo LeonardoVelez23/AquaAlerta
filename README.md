@@ -44,6 +44,7 @@ en su **propia red WiFi** si en la casa no hay internet.
 |---|---|---|
 | Sensor de turbidez SEN0189 cerca del fondo de R1 · en Wokwi potenciómetro `turb` | Cantidad de sedimentos | GPIO 35 |
 | Flotador de nivel mínimo en R1 · en Wokwi interruptor deslizante | ¿R1 tiene agua? (protege las bombas) | GPIO 19 |
+| Relé + electroválvula NC 12 V en la entrada de agua cruda · en Wokwi LED verde lima | Deja entrar agua solo con R1 en reposo | GPIO 15 |
 | JSN-SR04T en R1 · en Wokwi HC-SR04 `ultraR1` | Litros de R1 (para la dosis de PAC) y llegada de agua nueva | TRIG 16 / ECHO 17 |
 | Relé + bomba dosificadora de PAC · en Wokwi LED naranja | Coagulante | GPIO 32 |
 | Motor DC con paleta + driver/MOSFET (PWM) · en Wokwi LED cian (brillo = velocidad) | Agitador: mezcla rápida y lenta | GPIO 2 |
@@ -59,6 +60,20 @@ en su **propia red WiFi** si en la casa no hay internet.
 | Pulsador | Silencia 60 s y reinicia fallas | GPIO 4 |
 
 ## Cómo funciona cada etapa
+
+### 0. Entrada de agua a R1 (válvula)
+
+R1 trabaja **por lotes**: llenar → tratar → pasar a R2 → volver a llenar. La
+electroválvula de la entrada abre solo cuando R1 está en reposo (no coagula, no
+purga, no transfiere) y está bajo el **50 %**, y cierra al **95 %** o si en 20 s
+(real: 5 min) no sube el nivel (no está llegando agua; reintenta a los 60 s,
+real: 30 min). Si entró agua, al cerrar R1 se vuelve a tratar. Si R1 ya está
+tratada y R2 pide agua, primero transfiere.
+
+Así el agua cruda **nunca** se mezcla con la tratada que está pasando al filtro.
+Sin válvula (`USAR_VALVULA_R1 = false`) queda una protección por nivel: si R1
+sube un 2 % mientras transfiere, la transferencia se corta y R1 se vuelve a
+tratar; pero un chorrito más lento que la bomba no se detecta.
 
 ### 1. Coagulación y floculación con PAC en R1
 
@@ -102,6 +117,8 @@ botón *Tratar R1 ahora*:
   rojo). Después de rellenar, pulsar *Recargué el PAC*.
 - Sin lectura de nivel en R1 no dosifica (no sabe cuántos litros hay): avisa
   "Falla nivel R1" y sigue con la purga y el filtro.
+- Si R1 se queda sin agua (flotador) a mitad del lote, al retomarlo **descuenta
+  el PAC que ya echó**: nunca repite la dosis entera.
 - Mientras coagula, no purga ni transfiere: el agua tiene que estar quieta para
   que caigan los flóculos.
 
@@ -168,8 +185,15 @@ Cuando termina de entrar agua:
   solo.
 - Lleva la cuenta del cloro que queda en la botella ("Recargar cloro" bajo
   20 %, "Sin cloro" en rojo). Después de rellenar, pulsar *Recargué el cloro*.
-- El botón **Clorar todo R2** sirve, por ejemplo, después de un corte de luz:
-  calcula la dosis para todos los litros de R2.
+- El botón **Clorar todo R2** calcula la dosis para todos los litros de R2.
+  Úsalo solo si R2 no tiene cloro (verificar con el kit): sobre agua ya clorada
+  se pasaría de la dosis.
+
+**"Agua lista" no es una medición de cloro.** Significa que se aplicó la dosis
+del MSP con pH y turbidez correctos y que pasó el tiempo de contacto. El equipo
+no tiene sensor de cloro residual: se verifica a mano con un **kit DPD** (de
+piscina, ≥ 0,5 mg/L tras 30 min). En la fase 2, un sensor ORP o de cloro libre
+cerraría el lazo.
 - **Si el cloro no es al 5 %:** gotas/L = 5 ÷ % de la etiqueta (por ejemplo,
   al 2,5 % son 2 gotas/L). Se cambia en `CLORO_GOTAS_POR_LITRO`. Usar cloro sin
   aroma ni detergente.
@@ -198,6 +222,23 @@ filtro que falla, pero no certifica el límite de la OMS. Para eso:
    usan programas de agua de la OMS y ONG.
 3. Para una medida exacta, se necesita un turbidímetro de laboratorio. Se puede
    pedir a un laboratorio de la universidad o a la empresa de agua.
+
+## Cortes de luz
+
+El ESP32 guarda en su memoria flash (NVS) lo que no debe perderse: el PAC y el
+cloro que quedan, los litros de R2 por clorar, si R1 quedó tratada y en qué
+etapa iba la cloración. Las etapas se guardan al momento; el nivel de R1, como
+máximo una vez por minuto (para no gastar la flash). Al volver la luz:
+
+| Si se cortó durante… | Al volver |
+|---|---|
+| La dosis de PAC | Cuenta la dosis como **ya echada** (se queda corto, nunca se pasa) |
+| El llenado de R2 | Mide R2 y suma los litros que entraron para clorarlos |
+| El goteo de cloro | **No vuelve a clorar** (no sabe cuántas gotas cayeron): amarillo "R2 sin clorar?" hasta que lo revisen con el kit |
+| El tiempo de contacto | Lo empieza de nuevo |
+| Con "Agua lista" | Sigue en "Agua lista" |
+
+El inventario del bidón de PAC y de la botella de cloro también se mantiene.
 
 ## Semáforo
 
@@ -261,6 +302,33 @@ abastecidas a 20 L/día, insumos por reponer), tabla y detalle con gráficos.
 > ayuda a desinfectar con la dosis correcta, pero no reemplaza un análisis de
 > laboratorio del agua.
 
+## Modo DEMO y modo REAL
+
+`MODO_DEMO` (en `include/config.h`) elige los tiempos:
+
+| | DEMO (por defecto) | REAL |
+|---|---|---|
+| Coagulación / floculación / sedimentación | 15 s / 20 s / 30 s | 4 min / 12 min / 30 min |
+| Mezcla antes del pH / contacto del cloro | 15 s / 60 s | 5 min / 30 min |
+| Purga: pulso / pausa / máx. pulsos | 10 s / 15 s / 6 | 30 s / 5 min / 8 |
+| Filtro no limpia · válvula sin agua | 20 s · 20 s | 3 min · 5 min |
+
+- Demo (Wokwi y feria): `pio run`
+- Real (aljibe): `pio run -e esp32dev_real -t upload`
+
+El modo se ve en el monitor serial al arrancar y en la página.
+
+## Pruebas de la lógica en la PC
+
+`include/control.h` no depende del ESP32, así que se prueba en la PC
+([test/test_control](test/test_control/test_main.cpp)): tablas de dosis, ciclo
+de coagulación, que no haya doble dosis de PAC, la válvula, la cloración, la
+recuperación tras cortes de luz y el corte por desborde.
+
+```bash
+pio test -e native   # necesita g++ (Fedora: sudo dnf install gcc-c++)
+```
+
 ## Simular en Wokwi (Antigravity / VS Code)
 
 1. `pio run`
@@ -292,6 +360,10 @@ abastecidas a 20 L/día, insumos por reponer), tabla y detalle con gráficos.
      filtro"). Si lo haces con la transferencia encendida, a los 20 s aparece
      "Filtro no limpia".
    - Interruptor deslizante → "R1 sin agua": ninguna bomba arranca.
+   - **Válvula de entrada (LED verde lima):** con R1 en reposo y bajo el 50 %
+     se abre a buscar agua y, si `ultraR1` no cambia, cierra a los 20 s ("No
+     llega agua"). Para ver un lote nuevo, baja la distancia de `ultraR1`
+     mientras está encendida: al cerrar, R1 se vuelve a tratar.
    - PIN por defecto: `1234`.
 
 ### Prueba automática del flujo completo
@@ -317,7 +389,8 @@ wokwi-cli --scenario scenarios/flujo-completo.yaml --timeout 600000 .
   10 kΩ / 20 kΩ.
 - **Agitador:** motor DC de 12 V con una paleta (o un motor de batidora), controlado
   por PWM desde el GPIO 2 con un MOSFET logic-level (IRLZ44N) o un driver L298N,
-  con diodo en el motor. El PWM no mide las RPM: medir las RPM al 100 % (tacómetro
+  con diodo en el motor. El GPIO 2 es pin de arranque: poner una resistencia de
+  10 kΩ de la compuerta a GND para que quede en bajo al encender. El PWM no mide las RPM: medir las RPM al 100 % (tacómetro
   o app del celular con una marca en el eje) y ponerlas en `AGIT_RPM_MAX`.
 - **Bomba de PAC:** peristáltica o de diafragma de 12 V con la manguera en el
   bidón de solución madre. Medir los ml que saca en 1 min y ponerlos en
@@ -344,6 +417,11 @@ wokwi-cli --scenario scenarios/flujo-completo.yaml --timeout 600000 .
   arriba hasta que salga clara) y cada cierto tiempo se cambia el carbón
   activado. Automatizar el retrolavado con otra bomba y válvulas queda para la
   fase 2.
+- **Electroválvula de entrada** NC de 12 V (solenoide de lavadora o de riego)
+  en la tubería que llena R1, con relé y diodo. Si el agua llega por gravedad o
+  con poca presión, usar una válvula de "presión cero" (las de riego normales
+  necesitan ~0,2 bar para abrir). GPIO 15: al encender queda un instante en
+  alto, inofensivo para una válvula.
 - **Flotador** en R1 a la altura de la succión de transferencia: si el agua baja
   de ahí, ninguna bomba funciona.
 - **Sensor de turbidez de R2** donde cae el agua del filtro, sumergido sin
@@ -366,10 +444,12 @@ wokwi-cli --scenario scenarios/flujo-completo.yaml --timeout 600000 .
 
 ```
 include/config.h    pines, dosis de PAC, umbrales de sedimentos, dosis de cloro, rangos de pH, tiempos
-include/control.h   lógica pura: coagulación, purga, transferencia, cloración por pH y semáforo
+include/control.h   lógica pura: válvula de entrada, coagulación, purga, transferencia, cloración por pH,
+                    semáforo y respaldo para cortes de luz
 include/pagina.h    página web (HTML/CSS/JS embebido)
 include/panel.h     panel de red de aljibes (1 real + 5 simulados), en /panel
 scenarios/          prueba automática del flujo completo en Wokwi
+test/               pruebas de control.h en la PC (pio test -e native)
 src/main.cpp        sensores, relés, LCD, WiFi/AP y servidor web
 diagram.json        circuito de Wokwi
 ```

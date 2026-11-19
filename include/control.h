@@ -110,6 +110,15 @@ inline const char* textoCoag(EstadoCoag e) {
   }
 }
 
+// Lo que se guarda en flash para sobrevivir a un corte de luz.
+struct RespaldoCoag {
+  float mlTotal, mlRecarga;  // inventario del bidón de PAC
+  float mlPrevios;           // PAC ya echado en un lote sin terminar
+  float base;                // nivel de R1 al terminar el último lote
+  uint32_t lotes;
+  uint8_t tratada;           // R1 quedó tratada y no ha entrado agua desde entonces
+};
+
 class Coagulacion {
  public:
   EstadoCoag estado = EstadoCoag::ESPERA;
@@ -143,6 +152,28 @@ class Coagulacion {
            estado == EstadoCoag::SEDIMENTANDO;
   }
   bool lista() const { return estado == EstadoCoag::LISTA && !pendiente_; }
+  float mlPrevios() const { return mlPrevios_; }
+
+  // Para guardar en flash. Durante la dosis se guarda el peor caso (toda la
+  // dosis ya echada): tras un corte se queda corto de PAC, nunca se pasa.
+  RespaldoCoag respaldo() const {
+    bool dosif = estado == EstadoCoag::DOSIFICANDO;
+    float falta = dosif ? mlObjetivo - mlAplicados : 0;
+    return {mlTotal + (falta > 0 ? falta : 0), mlRecarga_,
+            mlPrevios_ + (dosif ? mlObjetivo : mlLote()), base_, (uint32_t)lotes, (uint8_t)lista()};
+  }
+  void restaurar(const RespaldoCoag& r) {
+    mlTotal = r.mlTotal;
+    mlRecarga_ = r.mlRecarga;
+    mlPrevios_ = r.mlPrevios;
+    lotes = r.lotes;
+    if (r.tratada && r.mlPrevios <= 0) {  // si entró agua durante el corte, el nivel lo detecta
+      estado = EstadoCoag::LISTA;
+      pendiente_ = false;
+      base_ = r.base;
+      hayBase_ = true;
+    }
+  }
   unsigned long faltaMs(unsigned long ahora) const {
     unsigned long d = ahora - desde_, total;
     switch (estado) {
@@ -155,8 +186,10 @@ class Coagulacion {
     return d < total ? total - d : 0;
   }
 
-  // ntu: turbidez de R1; nivel/nivelOk: ultrasonido de R1; bloqueado: purga o transferencia activas.
-  void actualizar(float ntu, float nivel, bool nivelOk, bool hayAgua, bool bloqueado, unsigned long ahora) {
+  // ntu: turbidez de R1; nivel/nivelOk: ultrasonido de R1; bloqueado: purga, transferencia o
+  // válvula de entrada activas; transfiriendo: la bomba R1 → R2 está encendida.
+  void actualizar(float ntu, float nivel, bool nivelOk, bool hayAgua, bool bloqueado, bool transfiriendo,
+                  unsigned long ahora) {
     if (bombaPac) {
       float ml = (ahora - tUltimo_) / 60000.0f * PAC_CAUDAL_ML_MIN;
       mlAplicados += ml;
@@ -165,16 +198,22 @@ class Coagulacion {
     tUltimo_ = ahora;
 
     // ¿Entró agua nueva? Se compara con el nivel más bajo desde el último lote.
+    // Transfiriendo, R1 tiene que bajar: cualquier subida es agua cruda entrando.
     if (nivelOk && !ocupado()) {
       if (!hayBase_ || nivel < base_) { base_ = nivel; hayBase_ = true; }
-      if (nivel >= base_ + R1_SUBIDA_LOTE) {
+      if (nivel >= base_ + (transfiriendo ? R1_SUBIDA_TRANSFER : R1_SUBIDA_LOTE)) {
         pendiente_ = true;
         base_ = nivel;
         if (estado == EstadoCoag::LISTA) estado = EstadoCoag::ESPERA;
       }
     }
 
-    if (!hayAgua && ocupado()) estado = EstadoCoag::ESPERA;  // se vació: reintenta luego
+    if (!hayAgua && ocupado()) {  // se vació: reintenta luego
+      // El PAC que ya cayó sigue en el agua: se descuenta al retomar el lote.
+      mlPrevios_ += mlLote();
+      mlAplicados = 0;
+      estado = EstadoCoag::ESPERA;
+    }
 
     switch (estado) {
       case EstadoCoag::ESPERA:
@@ -214,12 +253,20 @@ class Coagulacion {
   bool pendiente_ = true;  // al encender no se sabe si R1 está tratada
   bool hayBase_ = false;
   float base_ = 0, mlRecarga_ = 0;
+  float mlPrevios_ = 0;  // PAC echado en un intento anterior del mismo lote
+
+  // ml echados en el intento actual (mlAplicados solo vale desde que empezó a dosificar).
+  float mlLote() const {
+    return (estado == EstadoCoag::DOSIFICANDO || estado == EstadoCoag::COAGULANDO ||
+            estado == EstadoCoag::FLOCULANDO || estado == EstadoCoag::SEDIMENTANDO) ? mlAplicados : 0;
+  }
   unsigned long desde_ = 0, tUltimo_ = 0;
 
   void cambiar(EstadoCoag e, unsigned long ahora) { estado = e; desde_ = ahora; }
 
   void terminarLote(float nivel, bool nivelOk) {
     pendiente_ = false;
+    mlPrevios_ = 0;
     estado = EstadoCoag::LISTA;
     if (nivelOk) base_ = nivel;
   }
@@ -236,10 +283,12 @@ class Coagulacion {
       return;
     }
     litrosLote = nivel / 100.0f * R1_CAPACIDAD_L;
-    mlObjetivo = mlPac(ppm, litrosLote);
+    // Lote retomado tras quedarse sin agua o un corte: solo lo que falta.
+    mlObjetivo = mlPac(ppm, litrosLote) - mlPrevios_;
+    if (mlObjetivo < 0) mlObjetivo = 0;
     mlAplicados = 0;
     if (mlRestantes() < mlObjetivo) { estado = EstadoCoag::SIN_PAC; return; }
-    cambiar(EstadoCoag::DOSIFICANDO, ahora);
+    cambiar(mlObjetivo > 0 ? EstadoCoag::DOSIFICANDO : EstadoCoag::COAGULANDO, ahora);
   }
 };
 
@@ -329,6 +378,59 @@ class ControlPurga {
   bool pedidoManual_ = false;
   unsigned long desde_ = 0, tOn_ = 0;
   float ntuInicio_ = 0;
+};
+
+// ---------- Válvula de entrada de agua cruda a R1 ----------
+// Trabaja por lotes: abre cuando R1 está en reposo y bajo R1_RELLENAR, se llena
+// hasta R1_LLENO_MAX (o hasta que deja de llegar agua) y cierra para tratar.
+// Mientras está abierta no se coagula ni se transfiere: el agua cruda nunca se
+// mezcla con la tratada que pasa a R2.
+class ControlValvula {
+ public:
+  bool abierta = false;
+  const char* motivo = "Cerrada";
+  unsigned long llenados = 0;  // aperturas en las que sí entró agua
+
+  // Devuelve true al cerrar si entró agua: hay que tratar R1.
+  // r1Ocupado: coagula, purga o transfiere. r2EsperaAgua: R1 ya está tratada y R2 la necesita.
+  bool actualizar(float nivel, bool nivelOk, bool r1Ocupado, bool r2EsperaAgua, unsigned long ahora) {
+    if (!USAR_VALVULA_R1) { motivo = "Sin valvula"; return false; }
+    bool quiere = abierta;
+    const char* porQue = motivo;
+    if (abierta) {
+      if (nivelOk && nivel > nivelRef_ + R1_SUBIDA_VALVULA) { nivelRef_ = nivel; tSubio_ = ahora; }
+      if (!nivelOk)                     { quiere = false; porQue = "Sin lectura R1"; }
+      else if (r1Ocupado)               { quiere = false; porQue = "R1 ocupado"; }
+      else if (nivel >= R1_LLENO_MAX)   { quiere = false; porQue = "R1 lleno"; }
+      else if (ahora - tSubio_ >= VALVULA_SIN_AGUA_MS) { quiere = false; porQue = "No llega agua"; sinAgua_ = true; }
+    } else {
+      bool esperar = sinAgua_ && ahora - tCerro_ < VALVULA_REINTENTO_MS;
+      if (nivelOk && !r1Ocupado && !r2EsperaAgua && !esperar && nivel <= R1_RELLENAR) {
+        quiere = true;
+        porQue = "Llenando R1";
+      }
+    }
+
+    bool tratar = false;
+    if (quiere && !abierta) {
+      abierta = true;
+      sinAgua_ = false;
+      nivelAbrir_ = nivelRef_ = nivel;
+      tSubio_ = ahora;
+    } else if (!quiere && abierta) {
+      abierta = false;
+      tCerro_ = ahora;
+      tratar = nivelOk && nivel >= nivelAbrir_ + R1_SUBIDA_VALVULA;
+      if (tratar) llenados++;
+    }
+    motivo = abierta ? "Llenando R1" : porQue;  // cerrada: muestra por qué cerró la última vez
+    return tratar;
+  }
+
+ private:
+  bool sinAgua_ = false;
+  float nivelAbrir_ = 0, nivelRef_ = 0;
+  unsigned long tSubio_ = 0, tCerro_ = 0;
 };
 
 // ---------- Bomba de transferencia (R1 → filtro → R2) ----------
@@ -471,6 +573,15 @@ inline const char* textoCloro(EstadoCloro e) {
   }
 }
 
+struct RespaldoCloro {
+  float gotasTotal, gotasRecarga;  // inventario de la botella de cloro
+  float litrosPendientes;          // agua nueva sin clorar
+  float litrosInicioLlenado;       // litros de R2 cuando empezó a entrar agua
+  uint32_t dosis;
+  uint8_t fase;                    // FASE_*
+};
+constexpr uint8_t FASE_OTRA = 0, FASE_GOTEO = 1, FASE_CONTACTO = 2, FASE_LISTA = 3, FASE_LLENANDO = 4;
+
 class Cloracion {
  public:
   EstadoCloro estado = EstadoCloro::SIN_DATO;
@@ -499,8 +610,56 @@ class Cloracion {
     return 0;
   }
 
+  // Empieza a entrar agua a R2 (para saber cuánta entró si se corta la luz).
+  void inicioLlenado(float litrosR2) { litrosInicioLlenado_ = litrosR2; }
+  bool llenadoInterrumpido() const { return llenadoInterrumpido_; }
+  float litrosInicioLlenado() const { return litrosInicioLlenado_; }
+
+  RespaldoCloro respaldo() const {
+    bool goteo = estado == EstadoCloro::DOSIFICANDO;
+    float falta = goteo ? gotasObjetivo - gotasAplicadas : 0;
+    uint8_t fase = goteo                          ? FASE_GOTEO
+                   : estado == EstadoCloro::CONTACTO ? FASE_CONTACTO
+                   : estado == EstadoCloro::LISTA    ? FASE_LISTA
+                   : estado == EstadoCloro::LLENANDO ? FASE_LLENANDO
+                                                     : FASE_OTRA;
+    return {gotasTotal + (falta > 0 ? falta : 0), gotasRecarga_, litrosPendientes, litrosInicioLlenado_,
+            (uint32_t)dosis, fase};
+  }
+  // Tras un corte de luz. Nunca vuelve a "Agua lista" sin haber terminado el contacto.
+  void restaurar(const RespaldoCloro& r, unsigned long ahora) {
+    gotasTotal = r.gotasTotal;
+    gotasRecarga_ = r.gotasRecarga;
+    litrosPendientes = r.litrosPendientes;
+    litrosInicioLlenado_ = r.litrosInicioLlenado;
+    dosis = r.dosis;
+    switch (r.fase) {
+      case FASE_GOTEO:
+        // No se sabe cuántas gotas cayeron: no redosifica (podría pasarse de
+        // 5 mg/L). Queda en amarillo "R2 sin clorar?" hasta que lo revisen.
+        litrosPendientes = 0;
+        estado = EstadoCloro::SIN_DATO;
+        break;
+      case FASE_CONTACTO:  // el tiempo de contacto vuelve a empezar
+        estado = EstadoCloro::CONTACTO;
+        desde_ = ahora;
+        break;
+      case FASE_LISTA:
+        estado = EstadoCloro::LISTA;
+        break;
+      case FASE_LLENANDO:  // main suma los litros que entraron con la primera lectura de R2
+        estado = EstadoCloro::LLENANDO;
+        estadoPrevio_ = EstadoCloro::SIN_DATO;
+        llenadoInterrumpido_ = true;
+        break;
+      default:
+        if (litrosPendientes > 0) iniciarMezcla(ahora);
+    }
+  }
+
   // Terminó de entrar agua a R2.
   void aguaNueva(float litros, unsigned long ahora) {
+    llenadoInterrumpido_ = false;
     if (litros > 0) litrosPendientes += litros;
     if (litrosPendientes > 0) iniciarMezcla(ahora);
     else if (estado == EstadoCloro::LLENANDO) estado = estadoPrevio_;  // no entró agua
@@ -555,6 +714,8 @@ class Cloracion {
  private:
   unsigned long desde_ = 0, tUltimo_ = 0;
   float gotasRecarga_ = 0;
+  float litrosInicioLlenado_ = 0;
+  bool llenadoInterrumpido_ = false;
   EstadoCloro estadoPrevio_ = EstadoCloro::SIN_DATO;
 
   void iniciarMezcla(unsigned long ahora) {

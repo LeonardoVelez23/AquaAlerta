@@ -6,6 +6,16 @@
 #pragma once
 #include <stdint.h>
 
+// ---------- Modo de tiempos ----------
+// 1 = DEMO: tiempos cortos para Wokwi y la feria (el ciclo completo dura minutos).
+// 0 = REAL: tiempos de un aljibe (coagulación ~45 min, contacto de cloro 30 min).
+// Se cambia aquí o al compilar: `pio run -e esp32dev_real`.
+#ifndef MODO_DEMO
+#define MODO_DEMO 1
+#endif
+// Elige el valor de demo o el real.
+#define DEMO_O_REAL(demo, real) (MODO_DEMO ? (demo) : (real))
+
 // ---------- Pines (ESP32 DevKit C) ----------
 constexpr int PIN_TURB_R1   = 35;  // sensor de sedimentos (turbidez) cerca del fondo de R1 (ADC1)
 constexpr int PIN_FLOTADOR_R1 = 19;  // flotador de nivel mínimo en R1 (LOW = hay agua)
@@ -25,6 +35,8 @@ constexpr int PIN_TRIG_R1   = 16;  // ultrasonido R1: litros para calcular la do
 constexpr int PIN_ECHO_R1   = 17;  // físico: divisor 5 V → 3,3 V
 constexpr int PIN_RELE_PAC  = 32;  // bomba dosificadora de PAC (coagulante) en R1
 constexpr int PIN_AGITADOR  = 2;   // PWM → driver/MOSFET del motor del agitador de R1
+                                   // (pin de arranque: el driver debe tener pull-down en la entrada)
+constexpr int PIN_VALVULA_R1 = 15; // electroválvula NC en la entrada de agua cruda a R1
 constexpr int LCD_ADDR      = 0x27;
 constexpr bool RELE_ACTIVO_ALTO = true;  // muchos módulos físicos son activo-bajo
 
@@ -32,6 +44,17 @@ constexpr bool RELE_ACTIVO_ALTO = true;  // muchos módulos físicos son activo-
 constexpr float R1_DIST_VACIO_CM = 100.0f;  // sensor → fondo
 constexpr float R1_DIST_LLENO_CM = 25.0f;   // sensor → nivel máximo
 constexpr float R1_CAPACIDAD_L   = 500.0f;  // litros entre vacío y lleno
+// Válvula de entrada: deja entrar agua cruda solo cuando R1 está en reposo
+// (no coagula, no purga, no transfiere). Así el agua sin tratar nunca se mezcla
+// con la tratada que está pasando a R2. Sin válvula instalada: false, y queda
+// la protección por nivel (R1_SUBIDA_TRANSFER).
+constexpr bool  USAR_VALVULA_R1 = true;
+constexpr float R1_LLENO_MAX    = 95.0f;  // % — la válvula cierra al llegar aquí
+constexpr float R1_RELLENAR     = 50.0f;  // % — la válvula abre (lote nuevo) por debajo
+constexpr float R1_SUBIDA_VALVULA = 1.0f; // % que sube con la válvula abierta: hay que tratar
+// Si con la válvula abierta R1 no sube, no está llegando agua: cierra y reintenta después.
+constexpr unsigned long VALVULA_SIN_AGUA_MS  = DEMO_O_REAL(20UL, 5UL * 60UL) * 1000UL;
+constexpr unsigned long VALVULA_REINTENTO_MS = DEMO_O_REAL(60UL, 30UL * 60UL) * 1000UL;
 
 // ---------- R2 (agua tratada) ----------
 // Distancias medidas desde el sensor (en la tapa) hasta el agua.
@@ -72,10 +95,13 @@ constexpr float COAG_MIN_NTU  = 10.0f;     // agua más clara que esto: no se us
 constexpr int   PAC_PUNTOS = 3;
 constexpr float PAC_TABLA_NTU[PAC_PUNTOS] = {10.0f, 20.0f, 100.0f};
 constexpr float PAC_TABLA_PPM[PAC_PUNTOS] = {20.0f, 30.0f, 200.0f};
-constexpr float PAC_CAUDAL_ML_MIN = 1000.0f;  // bomba dosificadora de PAC (medir)
+constexpr float PAC_CAUDAL_ML_MIN = 1000.0f;  // bomba dosificadora de PAC (medir los ml en 1 min)
 constexpr float PAC_TANQUE_ML     = 20000.0f; // bidón de solución madre
 constexpr float PAC_AVISO_PCT     = 20.0f;    // "Recargar PAC" bajo este %
 constexpr float R1_SUBIDA_LOTE    = 5.0f;     // % que sube R1 para contar "agua nueva"
+// Con la transferencia encendida R1 debería bajar: si sube esto, está entrando
+// agua cruda y se corta la transferencia al momento (R1 vuelve a tratarse).
+constexpr float R1_SUBIDA_TRANSFER = 2.0f;
 // Agitador: motor DC con paleta, velocidad por PWM (lazo abierto). Calibrar:
 // medir las RPM al 100 % de PWM (tacómetro o app del celular) y anotarlas aquí.
 constexpr int AGIT_RPM_MAX    = 200;
@@ -83,11 +109,10 @@ constexpr int AGIT_RPM_RAPIDA = 150;  // coagulación: 140–160 RPM
 constexpr int AGIT_RPM_LENTA  = 40;   // floculación: 40 RPM
 constexpr int AGIT_PWM_FREQ   = 1000;
 constexpr int AGIT_PWM_BITS   = 8;
-// Simulación: 5 s, 15 s, 20 s y 30 s. Real: 30 s, 3–5 min, 10–15 min y 30 min.
-constexpr unsigned long COAG_MEDIR_MS  = 5UL * 1000UL;   // homogeneizar antes de medir
-constexpr unsigned long COAG_RAPIDA_MS = 15UL * 1000UL;  // coagulación
-constexpr unsigned long COAG_LENTA_MS  = 20UL * 1000UL;  // floculación
-constexpr unsigned long COAG_SEDIM_MS  = 30UL * 1000UL;  // sedimentación
+constexpr unsigned long COAG_MEDIR_MS  = DEMO_O_REAL(5UL, 30UL) * 1000UL;        // homogeneizar antes de medir
+constexpr unsigned long COAG_RAPIDA_MS = DEMO_O_REAL(15UL, 4UL * 60UL) * 1000UL;  // coagulación (3–5 min)
+constexpr unsigned long COAG_LENTA_MS  = DEMO_O_REAL(20UL, 12UL * 60UL) * 1000UL; // floculación (10–15 min)
+constexpr unsigned long COAG_SEDIM_MS  = DEMO_O_REAL(30UL, 30UL * 60UL) * 1000UL; // sedimentación
 
 // ---------- R1: sedimentos y purga ----------
 // El sensor de turbidez va cerca del fondo: mide cuánto sedimento hay.
@@ -95,10 +120,9 @@ constexpr float SED_MEDIO_NTU = 50.0f;    // desde aquí hay que purgar
 constexpr float SED_ALTO_NTU  = 200.0f;   // mucho sedimento (solo informativo)
 constexpr float SED_LIMPIO_NTU = 20.0f;   // la purga termina al bajar de aquí
 // La purga va por pulsos: saca lodo, deja asentar, vuelve a medir.
-// Valores cortos para la simulación; en un reservorio real: 30 s, 5 min, 8.
-constexpr unsigned long PURGA_PULSO_MS = 10UL * 1000UL;
-constexpr unsigned long PURGA_PAUSA_MS = 15UL * 1000UL;
-constexpr int           PURGA_MAX_PULSOS = 6;  // si no limpia: "Purga sin efecto"
+constexpr unsigned long PURGA_PULSO_MS = DEMO_O_REAL(10UL, 30UL) * 1000UL;
+constexpr unsigned long PURGA_PAUSA_MS = DEMO_O_REAL(15UL, 5UL * 60UL) * 1000UL;
+constexpr int           PURGA_MAX_PULSOS = DEMO_O_REAL(6, 8);  // si no limpia: "Purga sin efecto"
 constexpr float PURGA_CAUDAL_LPM = 15.0f;  // litros/min de la bomba de purga (medir)
 
 // ---------- Turbidez en R2 (control del filtro) ----------
@@ -114,8 +138,8 @@ constexpr float TURB_R2_IDEAL     = 1.0f;  // NTU — solo informativo
 constexpr float TURB_R2_V_LIMPIA = 4.20f;
 // Si el agua que entra a R2 sigue turbia este tiempo con la bomba encendida:
 // falla "Filtro no limpia" (filtro roto, saturado o mal instalado).
-// Simulación: 20 s. Real: 3 min (da tiempo a que se mezcle con lo que ya había).
-constexpr unsigned long FILTRO_TURBIO_MS = 20UL * 1000UL;
+// Real: 3 min (da tiempo a que se mezcle con lo que ya había).
+constexpr unsigned long FILTRO_TURBIO_MS = DEMO_O_REAL(20UL, 3UL * 60UL) * 1000UL;
 
 // ---------- Transferencia (R1 → filtro → R2) ----------
 constexpr float R2_ENCENDER = 50.0f;   // % — auto: rellena R2 por debajo
@@ -123,10 +147,9 @@ constexpr float R2_APAGAR   = 90.0f;   // % — ...hasta aquí
 constexpr float NIVEL_SEGURIDAD = 95.0f;  // % — corte forzado, incluso en manual
 constexpr float NIVEL_CRITICO   = 10.0f;  // % — alerta roja: R2 casi vacío
 constexpr float SUBIDA_MINIMA   = 2.0f;   // % que debe subir R2 para "sí pasa agua"
-// Simulación; en real: 3 min, 60 min y 30 s.
-constexpr unsigned long BOMBA_SIN_SUBIR_MS    = 60UL * 1000UL;
-constexpr unsigned long BOMBA_MAX_MS          = 10UL * 60UL * 1000UL;
-constexpr unsigned long BOMBA_MIN_APAGADA_MS  = 10UL * 1000UL;
+constexpr unsigned long BOMBA_SIN_SUBIR_MS    = DEMO_O_REAL(60UL, 3UL * 60UL) * 1000UL;
+constexpr unsigned long BOMBA_MAX_MS          = DEMO_O_REAL(10UL, 60UL) * 60UL * 1000UL;
+constexpr unsigned long BOMBA_MIN_APAGADA_MS  = DEMO_O_REAL(10UL, 30UL) * 1000UL;
 
 // ---------- Cloración en R2 según el pH ----------
 // Dosis: MSP Ecuador, "Guía de Agua Segura" (2020), dosis domiciliaria:
@@ -147,9 +170,9 @@ constexpr float GOTAS_POR_ML = 20.0f;  // gotero estándar
 constexpr float GOTEO_GOTAS_MIN = 600.0f;
 constexpr float GOTERO_CAPACIDAD_ML = 1000.0f;  // botella de cloro
 constexpr float GOTERO_AVISO_PCT    = 20.0f;    // "Recargar cloro" bajo este %
-// Simulación: 15 s y 60 s. Real: 5 min (mezcla antes de medir pH) y 30 min (contacto).
-constexpr unsigned long MEZCLA_MS         = 15UL * 1000UL;
-constexpr unsigned long CLORO_CONTACTO_MS = 60UL * 1000UL;
+// Real: 5 min (mezcla antes de medir pH) y 30 min de contacto (MSP).
+constexpr unsigned long MEZCLA_MS         = DEMO_O_REAL(15UL, 5UL * 60UL) * 1000UL;
+constexpr unsigned long CLORO_CONTACTO_MS = DEMO_O_REAL(60UL, 30UL * 60UL) * 1000UL;
 
 // ---------- Interfaz ----------
 constexpr unsigned long CAMBIO_PANTALLA_MS   = 3000;
@@ -158,3 +181,7 @@ constexpr unsigned long INTERVALO_HISTORIAL_MS = 10000;  // un punto cada 10 s
 constexpr int           HISTORIAL_PUNTOS     = 180;      // 30 min
 constexpr unsigned long WIFI_ESPERA_MS       = 10000;    // luego crea su propia red
 constexpr uint32_t      WATCHDOG_MS          = 20000;
+// Respaldo en flash (NVS): insumos, litros por clorar y estado de los lotes
+// sobreviven a un corte de luz. Los contadores se guardan como máximo cada
+// minuto; los cambios de etapa, al momento.
+constexpr unsigned long RESPALDO_MIN_MS = 60000;

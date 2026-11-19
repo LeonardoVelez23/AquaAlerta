@@ -9,5 +9,7 @@
 #define AP_SSID       "AquaAlerta"
 #define AP_PASSWORD   "cambiar123"
 
-// PIN que pide la página para mover la bomba.
+// PIN que pide la página para mover la bomba. Con los valores de fábrica
+// ("1234" / "cambiar123") la página y el monitor serial muestran un aviso.
+// La página va por HTTP sin cifrar: usarla solo en la red de la casa o la del ESP32.
 #define PIN_WEB       "1234"
