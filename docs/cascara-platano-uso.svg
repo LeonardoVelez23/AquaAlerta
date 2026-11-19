@@ -1,0 +1,215 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1120" viewBox="0 0 1600 1120" font-family="DejaVu Sans, Arial, sans-serif">
+  <defs>
+    <marker id="fl" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#1f6fa8"/>
+    </marker>
+    <pattern id="arena" width="12" height="12" patternUnits="userSpaceOnUse">
+      <rect width="12" height="12" fill="#ead6a0"/><circle cx="3" cy="3" r="1.3" fill="#c9ad6a"/><circle cx="9" cy="8" r="1.1" fill="#c9ad6a"/>
+    </pattern>
+    <pattern id="bio" width="10" height="10" patternUnits="userSpaceOnUse">
+      <rect width="10" height="10" fill="#2a2a2a"/><circle cx="3" cy="4" r="1.4" fill="#4a4a4a"/><circle cx="8" cy="8" r="1" fill="#6b5a2a"/>
+    </pattern>
+    <pattern id="grava" width="22" height="16" patternUnits="userSpaceOnUse">
+      <rect width="22" height="16" fill="#9a9184"/><ellipse cx="6" cy="6" rx="5" ry="4" fill="#b8afa1"/><ellipse cx="16" cy="12" rx="5" ry="3.5" fill="#857c70"/>
+    </pattern>
+  </defs>
+  <rect width="1600" height="1120" fill="#f4f9fb"/>
+
+  <text x="40" y="58" font-size="32" font-weight="bold" fill="#0b3a5c">Cáscara de plátano como adsorbente en el filtro de AquaAlerta</text>
+  <text x="40" y="92" font-size="18" fill="#3d5a70">Se usa carbonizada (biocarbón), no cruda: así suelta mucha menos materia orgánica y no consume el cloro de R2.</text>
+
+  <!-- ===================== A. Preparación ===================== -->
+  <text x="40" y="146" font-size="22" font-weight="bold" fill="#0b3a5c">A · Preparación del biocarbón de cáscara</text>
+
+  <!-- tarjeta 1 -->
+  <g transform="translate(40,165)">
+    <rect width="235" height="300" rx="14" fill="#fff" stroke="#b9d3e2" stroke-width="2"/>
+    <circle cx="28" cy="28" r="17" fill="#1f6fa8"/><text x="28" y="34" font-size="18" font-weight="bold" fill="#fff" text-anchor="middle">1</text>
+    <path d="M55 120 Q117 165 182 78 Q188 66 176 70 Q122 132 64 104 Z" fill="#9bc53d" stroke="#5a7d1a" stroke-width="2"/>
+    <path d="M176 70 l8 -10" stroke="#5a7d1a" stroke-width="4"/>
+    <path d="M95 48 q-7 11 0 14 q7 -3 0 -14 Z" fill="#4aa3df"/>
+    <path d="M125 38 q-7 11 0 14 q7 -3 0 -14 Z" fill="#4aa3df"/>
+    <path d="M155 50 q-7 11 0 14 q7 -3 0 -14 Z" fill="#4aa3df"/>
+    <text x="18" y="200" font-size="17" font-weight="bold" fill="#0b3a5c">Recolectar y lavar</text>
+    <text x="18" y="228" font-size="14.5" fill="#333">Cáscara de plátano verde,</text>
+    <text x="18" y="250" font-size="14.5" fill="#333">lavada con agua limpia.</text>
+  </g>
+  <!-- tarjeta 2 -->
+  <g transform="translate(293,165)">
+    <rect width="235" height="300" rx="14" fill="#fff" stroke="#b9d3e2" stroke-width="2"/>
+    <circle cx="28" cy="28" r="17" fill="#1f6fa8"/><text x="28" y="34" font-size="18" font-weight="bold" fill="#fff" text-anchor="middle">2</text>
+    <circle cx="80" cy="72" r="22" fill="#f6b73c"/>
+    <g stroke="#f6b73c" stroke-width="4" stroke-linecap="round">
+      <line x1="80" y1="38" x2="80" y2="30"/><line x1="80" y1="106" x2="80" y2="114"/>
+      <line x1="46" y1="72" x2="38" y2="72"/><line x1="114" y1="72" x2="122" y2="72"/>
+      <line x1="56" y1="48" x2="50" y2="42"/><line x1="104" y1="96" x2="110" y2="102"/>
+      <line x1="104" y1="48" x2="110" y2="42"/><line x1="56" y1="96" x2="50" y2="102"/>
+    </g>
+    <g fill="#a98a3c" stroke="#7a6326" stroke-width="1.5">
+      <rect x="135" y="95" width="70" height="10" rx="4" transform="rotate(-8 170 100)"/>
+      <rect x="128" y="115" width="80" height="10" rx="4" transform="rotate(5 168 120)"/>
+      <rect x="140" y="135" width="62" height="10" rx="4" transform="rotate(-4 171 140)"/>
+    </g>
+    <text x="18" y="200" font-size="17" font-weight="bold" fill="#0b3a5c">Cortar y secar</text>
+    <text x="18" y="228" font-size="14.5" fill="#333">Tiras al sol 2–3 días u</text>
+    <text x="18" y="250" font-size="14.5" fill="#333">horno a 60–80 °C, hasta</text>
+    <text x="18" y="272" font-size="14.5" fill="#333">que se quiebren.</text>
+  </g>
+  <!-- tarjeta 3 -->
+  <g transform="translate(546,165)">
+    <rect width="235" height="300" rx="14" fill="#fff" stroke="#b9d3e2" stroke-width="2"/>
+    <circle cx="28" cy="28" r="17" fill="#1f6fa8"/><text x="28" y="34" font-size="18" font-weight="bold" fill="#fff" text-anchor="middle">3</text>
+    <path d="M110 48 q-10 -10 0 -20 q10 -10 0 -20" stroke="#9aa5ad" stroke-width="3" fill="none"/>
+    <path d="M128 50 q-10 -10 0 -20" stroke="#9aa5ad" stroke-width="3" fill="none"/>
+    <rect x="80" y="58" width="76" height="80" rx="4" fill="#8c98a1" stroke="#56626b" stroke-width="2"/>
+    <rect x="76" y="54" width="84" height="10" rx="3" fill="#6f7b84"/>
+    <circle cx="118" cy="59" r="3" fill="#222"/>
+    <text x="118" y="105" font-size="12" fill="#fff" text-anchor="middle">cáscara</text>
+    <path d="M86 165 l10 -24 l10 24 Z M108 165 l12 -30 l12 30 Z M134 165 l10 -22 l10 22 Z" fill="#f08a24"/>
+    <path d="M92 165 l4 -12 l4 12 Z M114 165 l6 -16 l6 16 Z M140 165 l4 -11 l4 11 Z" fill="#ffd34d"/>
+    <text x="18" y="200" font-size="17" font-weight="bold" fill="#0b3a5c">Carbonizar con poco aire</text>
+    <text x="18" y="228" font-size="14.5" fill="#333">Lata cerrada con un agujero,</text>
+    <text x="18" y="250" font-size="14.5" fill="#333">sobre brasa ≈ 1–2 h, hasta</text>
+    <text x="18" y="272" font-size="14.5" fill="#333">que deje de salir humo.</text>
+  </g>
+  <!-- tarjeta 4 -->
+  <g transform="translate(799,165)">
+    <rect width="235" height="300" rx="14" fill="#fff" stroke="#b9d3e2" stroke-width="2"/>
+    <circle cx="28" cy="28" r="17" fill="#1f6fa8"/><text x="28" y="34" font-size="18" font-weight="bold" fill="#fff" text-anchor="middle">4</text>
+    <g fill="#2a2a2a"><circle cx="95" cy="62" r="5"/><circle cx="112" cy="58" r="6"/><circle cx="130" cy="63" r="5"/><circle cx="145" cy="58" r="4"/><circle cx="120" cy="66" r="4"/></g>
+    <ellipse cx="118" cy="78" rx="62" ry="14" fill="#e9eef1" stroke="#56626b" stroke-width="2"/>
+    <g stroke="#9aa5ad" stroke-width="1"><line x1="70" y1="78" x2="166" y2="78"/><line x1="90" y1="67" x2="90" y2="89"/><line x1="110" y1="65" x2="110" y2="91"/><line x1="130" y1="65" x2="130" y2="91"/><line x1="150" y1="67" x2="150" y2="89"/></g>
+    <g fill="#2a2a2a"><circle cx="105" cy="104" r="2"/><circle cx="120" cy="112" r="2"/><circle cx="132" cy="100" r="2"/><circle cx="114" cy="124" r="2"/></g>
+    <path d="M78 160 Q118 128 158 160 Z" fill="#2a2a2a"/>
+    <text x="118" y="178" font-size="13" fill="#56626b" text-anchor="middle">0,5–2 mm</text>
+    <text x="18" y="200" font-size="17" font-weight="bold" fill="#0b3a5c">Moler y tamizar</text>
+    <text x="18" y="228" font-size="14.5" fill="#333">Más fino tapa el filtro;</text>
+    <text x="18" y="250" font-size="14.5" fill="#333">más grueso adsorbe poco.</text>
+  </g>
+  <!-- tarjeta 5 -->
+  <g transform="translate(1052,165)">
+    <rect width="235" height="300" rx="14" fill="#fff" stroke="#b9d3e2" stroke-width="2"/>
+    <circle cx="28" cy="28" r="17" fill="#1f6fa8"/><text x="28" y="34" font-size="18" font-weight="bold" fill="#fff" text-anchor="middle">5</text>
+    <path d="M112 38 q-9 14 0 18 q9 -4 0 -18 Z" fill="#4aa3df"/>
+    <path d="M78 62 L84 160 L152 160 L158 62" fill="#d9eefa" stroke="#56626b" stroke-width="2"/>
+    <rect x="84" y="128" width="68" height="32" fill="#2a2a2a"/>
+    <path d="M158 80 q22 0 26 30" stroke="#4aa3df" stroke-width="4" fill="none" marker-end="url(#fl)"/>
+    <text x="18" y="200" font-size="17" font-weight="bold" fill="#0b3a5c">Lavar y escurrir</text>
+    <text x="18" y="228" font-size="14.5" fill="#333">Enjuagar hasta que el</text>
+    <text x="18" y="250" font-size="14.5" fill="#333">agua salga clara.</text>
+  </g>
+  <!-- tarjeta 6 -->
+  <g transform="translate(1305,165)">
+    <rect width="235" height="300" rx="14" fill="#fff" stroke="#b9d3e2" stroke-width="2"/>
+    <circle cx="28" cy="28" r="17" fill="#1f6fa8"/><text x="28" y="34" font-size="18" font-weight="bold" fill="#fff" text-anchor="middle">6</text>
+    <path d="M70 80 Q70 62 90 62 L146 62 Q166 62 166 80 L166 140 Q166 158 146 158 L90 158 Q70 158 70 140 Z" fill="url(#bio)" stroke="#c9b48a" stroke-width="4" stroke-dasharray="6 3"/>
+    <path d="M100 62 q18 -18 36 0" stroke="#c9b48a" stroke-width="4" fill="none"/>
+    <line x1="182" y1="72" x2="182" y2="148" stroke="#1f6fa8" stroke-width="2"/>
+    <line x1="176" y1="72" x2="188" y2="72" stroke="#1f6fa8" stroke-width="2"/><line x1="176" y1="148" x2="188" y2="148" stroke="#1f6fa8" stroke-width="2"/>
+    <text x="194" y="115" font-size="13" fill="#1f6fa8">3–5</text><text x="194" y="131" font-size="13" fill="#1f6fa8">cm</text>
+    <text x="18" y="200" font-size="17" font-weight="bold" fill="#0b3a5c">Embolsar</text>
+    <text x="18" y="228" font-size="14.5" fill="#333">Bolsa de tela o malla.</text>
+    <text x="18" y="250" font-size="14.5" fill="#333">Se cambia sin desarmar</text>
+    <text x="18" y="272" font-size="14.5" fill="#333">el filtro.</text>
+  </g>
+  <!-- flechas entre tarjetas -->
+  <g fill="#1f6fa8">
+    <path d="M277 305 l12 10 l-12 10 Z"/><path d="M530 305 l12 10 l-12 10 Z"/><path d="M783 305 l12 10 l-12 10 Z"/>
+    <path d="M1036 305 l12 10 l-12 10 Z"/><path d="M1289 305 l12 10 l-12 10 Z"/>
+  </g>
+
+  <!-- ===================== B. Ubicación ===================== -->
+  <rect x="30" y="495" width="880" height="580" rx="16" fill="#fff" stroke="#b9d3e2" stroke-width="2"/>
+  <text x="54" y="535" font-size="22" font-weight="bold" fill="#0b3a5c">B · Dónde va en la cascada</text>
+
+  <!-- R1 -->
+  <rect x="60" y="560" width="160" height="110" rx="8" fill="#cfe6f3" stroke="#1f6fa8" stroke-width="2"/>
+  <rect x="62" y="640" width="156" height="28" fill="#b59b6a"/>
+  <text x="140" y="595" font-size="17" font-weight="bold" fill="#0b3a5c" text-anchor="middle">R1</text>
+  <text x="140" y="618" font-size="13.5" fill="#0b3a5c" text-anchor="middle">PAC, reposo, purga</text>
+  <path d="M220 590 L450 590 L450 612" stroke="#1f6fa8" stroke-width="5" fill="none" marker-end="url(#fl)"/>
+
+  <!-- columna del filtro -->
+  <rect x="340" y="615" width="220" height="305" fill="#e6f2f8" stroke="#56626b" stroke-width="3"/>
+  <rect x="342" y="645" width="216" height="62" fill="url(#arena)"/>
+  <rect x="342" y="707" width="216" height="58" fill="url(#bio)"/>
+  <rect x="340" y="705" width="220" height="62" fill="none" stroke="#2e9e5b" stroke-width="5"/>
+  <rect x="342" y="767" width="216" height="58" fill="#3d3d3d"/>
+  <g fill="#555"><circle cx="370" cy="785" r="5"/><circle cx="420" cy="800" r="6"/><circle cx="480" cy="782" r="5"/><circle cx="530" cy="805" r="6"/></g>
+  <rect x="342" y="825" width="216" height="45" fill="url(#grava)" opacity="0.75"/>
+  <rect x="342" y="870" width="216" height="48" fill="url(#grava)"/>
+  <text x="450" y="636" font-size="13" fill="#1f6fa8" text-anchor="middle">agua de R1</text>
+  <text x="450" y="742" font-size="15" font-weight="bold" fill="#9be3b5" text-anchor="middle">NUEVO</text>
+  <path d="M450 920 L450 1000 L630 1000" stroke="#1f6fa8" stroke-width="5" fill="none" marker-end="url(#fl)"/>
+
+  <!-- etiquetas de capas -->
+  <g font-size="14.5" fill="#333">
+    <line x1="560" y1="676" x2="590" y2="676" stroke="#9aa5ad" stroke-width="1.5"/>
+    <text x="596" y="670" font-weight="bold" fill="#0b3a5c">Arena fina</text>
+    <text x="596" y="690">retiene partículas y protege la capa siguiente</text>
+    <line x1="560" y1="736" x2="590" y2="736" stroke="#2e9e5b" stroke-width="2.5"/>
+    <text x="596" y="730" font-weight="bold" fill="#2e9e5b">Biocarbón de cáscara (bolsa)</text>
+    <text x="596" y="750">adsorbe metales pesados</text>
+    <line x1="560" y1="796" x2="590" y2="796" stroke="#9aa5ad" stroke-width="1.5"/>
+    <text x="596" y="790" font-weight="bold" fill="#0b3a5c">Carbón activado</text>
+    <text x="596" y="810">atrapa color y olor que suelte la cáscara</text>
+    <line x1="560" y1="872" x2="590" y2="872" stroke="#9aa5ad" stroke-width="1.5"/>
+    <text x="596" y="866" font-weight="bold" fill="#0b3a5c">Gravilla y grava silícea</text>
+    <text x="596" y="886">soporte y drenaje (no usar piedra caliza)</text>
+  </g>
+
+  <!-- R2 -->
+  <rect x="640" y="950" width="180" height="105" rx="8" fill="#d9eefa" stroke="#1f6fa8" stroke-width="2"/>
+  <text x="730" y="985" font-size="17" font-weight="bold" fill="#0b3a5c" text-anchor="middle">R2</text>
+  <text x="730" y="1008" font-size="13.5" fill="#0b3a5c" text-anchor="middle">pH, turbidez y</text>
+  <text x="730" y="1027" font-size="13.5" fill="#0b3a5c" text-anchor="middle">cloro al final</text>
+  <text x="60" y="960" font-size="14.5" fill="#333">El cloro siempre va después,</text>
+  <text x="60" y="980" font-size="14.5" fill="#333">en R2: nunca antes de la cáscara.</text>
+  <text x="60" y="1015" font-size="14.5" fill="#333">Variante simple: reemplazar todo</text>
+  <text x="60" y="1035" font-size="14.5" fill="#333">el carbón activado por biocarbón.</text>
+
+  <!-- ===================== C. Uso ===================== -->
+  <rect x="930" y="495" width="640" height="580" rx="16" fill="#fff" stroke="#b9d3e2" stroke-width="2"/>
+  <text x="954" y="535" font-size="22" font-weight="bold" fill="#0b3a5c">C · Uso y mantenimiento</text>
+
+  <g font-size="15" fill="#333">
+    <g transform="translate(954,560)">
+      <circle cx="16" cy="16" r="15" fill="#2e9e5b"/><text x="16" y="22" font-size="17" font-weight="bold" fill="#fff" text-anchor="middle">✓</text>
+      <text x="44" y="14" font-weight="bold" fill="#0b3a5c">Primer uso</text>
+      <text x="44" y="36">Pasar agua limpia y desechar los primeros lotes</text>
+      <text x="44" y="56">hasta que salga sin color.</text>
+    </g>
+    <g transform="translate(954,642)">
+      <circle cx="16" cy="16" r="15" fill="#2e9e5b"/><text x="16" y="22" font-size="17" font-weight="bold" fill="#fff" text-anchor="middle">✓</text>
+      <text x="44" y="14" font-weight="bold" fill="#0b3a5c">Cuándo cambiarla</text>
+      <text x="44" y="36">Cuando suba la turbidez o el color en R2: lo</text>
+      <text x="44" y="56">detecta el diagnóstico de falla del filtro.</text>
+    </g>
+    <g transform="translate(954,724)">
+      <circle cx="16" cy="16" r="15" fill="#2e9e5b"/><text x="16" y="22" font-size="17" font-weight="bold" fill="#fff" text-anchor="middle">✓</text>
+      <text x="44" y="14" font-weight="bold" fill="#0b3a5c">Verificar</text>
+      <text x="44" y="36">Medir a mano el TDS de R2 (puede soltar potasio).</text>
+      <text x="44" y="56">Metales: tiras reactivas o laboratorio.</text>
+    </g>
+    <g transform="translate(954,806)">
+      <circle cx="16" cy="16" r="15" fill="#d64545"/><text x="16" y="22" font-size="17" font-weight="bold" fill="#fff" text-anchor="middle">✗</text>
+      <text x="44" y="14" font-weight="bold" fill="#0b3a5c">No usar cáscara cruda</text>
+      <text x="44" y="36">Ni ponerla antes de la arena: suelta materia</text>
+      <text x="44" y="56">orgánica, consume cloro y se tapa.</text>
+    </g>
+    <g transform="translate(954,888)">
+      <circle cx="16" cy="16" r="15" fill="#d64545"/><text x="16" y="22" font-size="17" font-weight="bold" fill="#fff" text-anchor="middle">✗</text>
+      <text x="44" y="14" font-weight="bold" fill="#0b3a5c">Desecho</text>
+      <text x="44" y="36">Si atrapó metales, no compostar ni echar</text>
+      <text x="44" y="56">a la huerta: va a la basura o a un gestor.</text>
+    </g>
+    <g transform="translate(954,970)">
+      <circle cx="16" cy="16" r="15" fill="#e0a21b"/><text x="16" y="22" font-size="17" font-weight="bold" fill="#fff" text-anchor="middle">!</text>
+      <text x="44" y="14" font-weight="bold" fill="#0b3a5c">Solo si hay metales</text>
+      <text x="44" y="36">Si un análisis no los muestra, úsenla como</text>
+      <text x="44" y="56">sustituto local del carbón activado.</text>
+    </g>
+  </g>
+
+  <text x="40" y="1102" font-size="13" fill="#56626b">Valores orientativos: ajustar con pruebas propias. Base: Applied Water Science (2024), doi 10.1007/s13201-024-02173-8; tesis ESPAM sobre cáscara de plátano. Elaboración propia.</text>
+</svg>
