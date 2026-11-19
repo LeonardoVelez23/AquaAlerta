@@ -79,7 +79,7 @@ tbody tr{cursor:pointer}tbody tr:hover{background:var(--bg)}
  </div>
 
  <div class="card"><h2>Todos los aljibes</h2><div class="tabla"><table>
-  <thead><tr><th>Aljibe</th><th>Estado</th><th>Turbidez R1</th><th>pH</th><th>Turbidez R2</th><th>R2</th><th>PAC</th><th>Cloro</th><th>Visto</th></tr></thead>
+  <thead><tr><th>Aljibe</th><th>Estado</th><th>Turbidez R1</th><th>TDS</th><th>pH</th><th>Turbidez R2</th><th>R2</th><th>PAC</th><th>Cloro</th><th>Visto</th></tr></thead>
   <tbody id="filas"></tbody></table></div></div>
 </main>
 <script>
@@ -97,15 +97,15 @@ const N=[
  {id:3,nom:'Aljibe 3',sec:'Sector este',x:320,y:90,tipo:'pac'},
  {id:4,nom:'Aljibe 4',sec:'Sector sur',x:250,y:215,tipo:'filtro'},
  {id:5,nom:'Aljibe 5',sec:'Sector oeste',x:60,y:170,tipo:'off'},
- {id:6,nom:'Aljibe 6',sec:'Sector noreste',x:300,y:30,tipo:'coag'}];
+ {id:6,nom:'Aljibe 6',sec:'Estero (agua salobre)',x:300,y:30,tipo:'coag'}];
 
 // Casos simulados: cada uno muestra una situación distinta que detecta AquaAlerta.
 const BASES={
- ok:    {alerta:'VERDE',causa:'Agua lista',ntu1:18,ph:7.0,ntu2:1.2,r2:82,pac:64,cloro:71,litros:940},
- pac:   {alerta:'AMARILLO',causa:'Recargar PAC',ntu1:35,ph:6.9,ntu2:2.1,r2:66,pac:12,cloro:48,litros:610},
- filtro:{alerta:'ROJO',causa:'Filtro no limpia',ntu1:22,ph:7.2,ntu2:14,r2:40,pac:55,cloro:60,litros:380},
- off:   {alerta:'VERDE',causa:'Agua lista',ntu1:20,ph:7.1,ntu2:1.5,r2:74,pac:58,cloro:66,litros:520},
- coag:  {alerta:'AMARILLO',causa:'Floculando',ntu1:160,ph:7.1,ntu2:0.9,r2:55,pac:70,cloro:80,litros:720}};
+ ok:    {alerta:'VERDE',causa:'Agua lista',ntu1:18,tds:310,ph:7.0,ntu2:1.2,r2:82,pac:64,cloro:71,litros:940},
+ pac:   {alerta:'AMARILLO',causa:'Recargar PAC',ntu1:35,tds:420,ph:6.9,ntu2:2.1,r2:66,pac:12,cloro:48,litros:610},
+ filtro:{alerta:'ROJO',causa:'Filtro no limpia',ntu1:22,tds:380,ph:7.2,ntu2:14,r2:40,pac:55,cloro:60,litros:380},
+ off:   {alerta:'VERDE',causa:'Agua lista',ntu1:20,tds:290,ph:7.1,ntu2:1.5,r2:74,pac:58,cloro:66,litros:520},
+ coag:  {alerta:'AMARILLO',causa:'Agua salobre',ntu1:160,tds:1450,ph:7.1,ntu2:0.9,r2:55,pac:70,cloro:80,litros:720}};
 
 const lim=(v,a,b)=>Math.max(a,Math.min(b,v));
 // Ruido alrededor del valor base del caso (vuelve hacia él: no se desvía con el tiempo).
@@ -113,13 +113,14 @@ const ruido=(v,b,a)=>v+(b-v)*.08+(Math.random()-.5)*a;
 function paso(s,t){
  const b=BASES[t];
  s.ntu1=lim(ruido(s.ntu1,b.ntu1,b.ntu1*.06+1),0,3000);
+ s.tds=lim(ruido(s.tds,b.tds,b.tds*.02),0,5000);
  s.ph=lim(ruido(s.ph,b.ph,.06),5.5,9);
  s.ntu2=lim(ruido(s.ntu2,b.ntu2,t==='filtro'?1.2:.15),0,50);
  s.r2=lim(ruido(s.r2,b.r2,.8),8,92);
  if(t==='ok'&&Math.random()<.05)s.litros+=Math.round(5+Math.random()*10);
 }
 function guardar(n){
- n.h.push({ntu1:n.s.ntu1,ntu2:n.s.ntu2,ph:n.s.ph,r2:n.s.r2});
+ n.h.push({ntu1:n.s.ntu1,ntu2:n.s.ntu2,ph:n.s.ph,r2:n.s.r2,tds:n.s.tds});
  if(n.h.length>MAXH)n.h.shift();
 }
 const ahora=Date.now();
@@ -159,7 +160,7 @@ async function leerReal(){
  try{
   const c=new AbortController();const to=setTimeout(()=>c.abort(),3000);
   const d=await (await fetch(BASE+'/api/estado',{signal:c.signal})).json();clearTimeout(to);
-  n.s={alerta:d.alerta,causa:d.causa,ntu1:d.r1.ntu,ph:d.r2.ph,ntu2:d.r2.ntu,r2:d.r2.nivel,
+  n.s={alerta:d.alerta,causa:d.causa,ntu1:d.r1.ntu,tds:d.r1.tds,ph:d.r2.ph,ntu2:d.r2.ntu,r2:d.r2.nivel,
        pac:d.coag.pct_restante,cloro:d.cloro.pct_restante,litros:d.transfer.litros};
   n.online=true;n.visto=Date.now();
  }catch(e){n.online=false;}
@@ -167,8 +168,8 @@ async function leerReal(){
 async function histReal(){
  try{
   const d=await (await fetch(BASE+'/api/historial')).json();
-  // cada punto: [nivel R2 %, NTU R1, pH×10, bits de estado, NTU R2]
-  N[0].h=d.datos.slice(-MAXH).map(p=>({r2:p[0],ntu1:p[1],ph:p[2]/10,ntu2:p[4]}));
+  // cada punto: [nivel R2 %, NTU R1, pH×10, bits de estado, NTU R2, TDS R1]
+  N[0].h=d.datos.slice(-MAXH).map(p=>({r2:p[0],ntu1:p[1],ph:p[2]/10,ntu2:p[4],tds:p[5]}));
  }catch(e){}
 }
 
@@ -197,7 +198,7 @@ function pintar(){
  $('nodos').innerHTML=g;
 
  $('filas').innerHTML=vs.map(n=>{const s=n.s||{};return `<tr data-id="${n.id}"><td><b>${esc(n.nom)}</b> ${etiqueta(n)}<br><small>${esc(n.sec)}</small></td>`+
-  `<td><span class="est ${color(n)}">${esc(causa(n))}</span></td><td>${f(s.ntu1,0)} NTU</td><td>${f(s.ph,1)}</td><td>${f(s.ntu2,1)} NTU</td>`+
+  `<td><span class="est ${color(n)}">${esc(causa(n))}</span></td><td>${f(s.ntu1,0)} NTU</td><td>${f(s.tds,0)} ppm</td><td>${f(s.ph,1)}</td><td>${f(s.ntu2,1)} NTU</td>`+
   `<td>${barra(s.r2,'--agua')}</td><td>${barra(s.pac,'--lodo')}</td><td>${barra(s.cloro,'--cloro')}</td><td>${hace(n.visto)}</td></tr>`}).join('');
 
  detalle();
@@ -209,6 +210,7 @@ function detalle(){
   `<small>${esc(n.sec)} · ${hace(n.visto)}</small><p><span class="est ${color(n)}">${esc(causa(n))}</span></p>`+
   `<div class="vals"><div><span>Turbidez R1 (sedimentos)</span><b>${f(s.ntu1,0)} NTU</b></div>`+
   `<div><span>Turbidez R2 (tras el filtro)</span><b>${f(s.ntu2,1)} NTU</b></div>`+
+  `<div><span>Sales disueltas (TDS) R1</span><b>${f(s.tds,0)} ppm</b></div>`+
   `<div><span>pH en R2</span><b>${f(s.ph,1)}</b></div><div><span>Nivel R2</span><b>${f(s.r2,0)} %</b></div>`+
   `<div><span>PAC / cloro</span><b>${f(s.pac,0)} % / ${f(s.cloro,0)} %</b></div>`+
   `<div><span>Litros tratados</span><b>${f(s.litros,0)} L</b></div></div>`+

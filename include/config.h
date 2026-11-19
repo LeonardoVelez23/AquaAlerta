@@ -37,8 +37,19 @@ constexpr int PIN_RELE_PAC  = 32;  // bomba dosificadora de PAC (coagulante) en 
 constexpr int PIN_AGITADOR  = 2;   // PWM → driver/MOSFET del motor del agitador de R1
                                    // (pin de arranque: el driver debe tener pull-down en la entrada)
 constexpr int PIN_VALVULA_R1 = 15; // electroválvula NC en la entrada de agua cruda a R1
+constexpr int PIN_TDS_R1    = 39;  // sensor TDS (sales disueltas) en R1 (ADC1, VN, solo entrada)
 constexpr int LCD_ADDR      = 0x27;
 constexpr bool RELE_ACTIVO_ALTO = true;  // muchos módulos físicos son activo-bajo
+
+// ---------- Recipientes ----------
+// Valores DE FÁBRICA. Se cambian sin recompilar desde la página («Recipientes»):
+// a mano o con «Está vacío ahora» / «Está lleno ahora», y quedan guardados en
+// la flash. Sirve cualquier recipiente de paredes rectas (frasco, balde,
+// tanque, aljibe): litros = % de altura × capacidad.
+// Ultrasonido: HC-SR04 mide desde ~2 cm (frascos chicos); JSN-SR04T es
+// impermeable pero no mide los primeros ~20–25 cm (solo tanques grandes).
+constexpr float DIST_RUIDO_CM = 0.5f;  // ruido del ultrasonido: los umbrales de subida nunca bajan de esto
+constexpr float GEOM_MIN_ALTURA_CM = 3.0f;  // vacío − lleno mínimo aceptado
 
 // ---------- R1 (agua cruda) ----------
 constexpr float R1_DIST_VACIO_CM = 100.0f;  // sensor → fondo
@@ -140,6 +151,22 @@ constexpr float TURB_R2_V_LIMPIA = 4.20f;
 // falla "Filtro no limpia" (filtro roto, saturado o mal instalado).
 // Real: 3 min (da tiempo a que se mezcle con lo que ya había).
 constexpr unsigned long FILTRO_TURBIO_MS = DEMO_O_REAL(20UL, 3UL * 60UL) * 1000UL;
+
+// ---------- TDS: sales y minerales disueltos en el agua de la fuente (R1) ----------
+// Ni el filtro de arena/carbón ni el cloro quitan las sales: si la fuente es
+// salobre (p. ej. un estero), tratarla gasta PAC y cloro en agua que no sirve.
+// La sonda va en R1, lejos del pH de R2 (dos sondas en el mismo tanque se interfieren).
+// Módulo tipo Gravity TDS alimentado a 3,3 V: salida 0–2,3 V, directo al pin.
+// Se usa la lectura del agua cruda de cada lote (antes del PAC, que suma sales).
+// OMS (aceptabilidad por sabor): < 600 mg/L bueno, > 1000 mg/L inaceptable.
+constexpr float TDS_BUENO_PPM = 600.0f;
+constexpr float TDS_MAX_PPM   = 1000.0f;  // más: aviso "Agua salobre"
+constexpr float TDS_TEMP_C    = 25.0f;    // sin sensor de temperatura se asume 25 °C
+// Calibración: con una solución patrón (p. ej. 342 ppm de NaCl), K = patrón / lectura.
+constexpr float TDS_K         = 1.0f;
+// true: con agua salobre no coagula ni pasa agua a R2 (ahorra insumos).
+// false: solo avisa. Por defecto avisa, hasta calibrar el sensor.
+constexpr bool  TDS_BLOQUEA   = false;
 
 // ---------- Transferencia (R1 → filtro → R2) ----------
 constexpr float R2_ENCENDER = 50.0f;   // % — auto: rellena R2 por debajo

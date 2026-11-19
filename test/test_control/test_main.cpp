@@ -25,6 +25,62 @@ void test_cloro_por_ph() {
   TEST_ASSERT_EQUAL(3, rangoPh(8.5f));
 }
 
+// ---------- Recipientes ----------
+void test_tanque_frasco() {
+  Tanque frasco = {32, 6, 8};  // frasco de 8 L: 26 cm útiles
+  TEST_ASSERT_FLOAT_WITHIN(0.01, 50, frasco.nivel(19));
+  TEST_ASSERT_FLOAT_WITHIN(0.01, 4, frasco.litrosDe(50));
+  TEST_ASSERT_EQUAL_FLOAT(0, frasco.nivel(40));    // bajo el fondo: 0 %
+  TEST_ASSERT_EQUAL_FLOAT(100, frasco.nivel(3));   // sobre el máximo: 100 %
+  // 1 % de 26 cm son 2,6 mm (menos que el ruido): el umbral sube a 0,5 cm ≈ 1,9 %
+  TEST_ASSERT_FLOAT_WITHIN(0.01, 0.5f / 26 * 100, frasco.umbral(1));
+  TEST_ASSERT_EQUAL_FLOAT(5, frasco.umbral(5));    // si ya es mayor, se respeta
+}
+
+void test_tanque_validacion() {
+  TEST_ASSERT_TRUE(Tanque::valido(32, 6, 8));
+  TEST_ASSERT_FALSE(Tanque::valido(6, 32, 8));     // vacío y lleno al revés
+  TEST_ASSERT_FALSE(Tanque::valido(8, 6, 8));      // menos de 3 cm útiles
+  TEST_ASSERT_FALSE(Tanque::valido(32, 1, 8));     // lleno dentro de la zona ciega
+  TEST_ASSERT_FALSE(Tanque::valido(32, 6, 0));     // sin litros
+  TEST_ASSERT_FALSE(Tanque::valido(NAN, 6, 8));
+}
+
+// La dosis de PAC usa los litros del recipiente configurado.
+void test_coag_usa_recipiente_configurado() {
+  Tanque antes = tanqueR1;
+  tanqueR1 = {32, 6, 8};
+  Coagulacion c;
+  c.actualizar(300, 50, true, true, false, false, 1000);
+  c.actualizar(300, 50, true, true, false, false, 1000 + COAG_MEDIR_MS);
+  TEST_ASSERT_FLOAT_WITHIN(0.01, 4, c.litrosLote);
+  TEST_ASSERT_FLOAT_WITHIN(0.1, 80, c.mlObjetivo);  // 200 ppm × 4 L / 10 000 ppm
+  tanqueR1 = antes;
+}
+
+void test_tds() {
+  TEST_ASSERT_EQUAL_FLOAT(0, tdsDesdeVoltaje(0));
+  // Curva del fabricante a 25 °C: 1 V → (133,42 − 255,86 + 857,39) × 0,5 ≈ 367 ppm
+  TEST_ASSERT_FLOAT_WITHIN(1, 367.5f, tdsDesdeVoltaje(1.0f));
+  // Más caliente conduce más: a 35 °C la misma tensión son menos ppm
+  TEST_ASSERT_TRUE(tdsDesdeVoltaje(1.0f, 35) < tdsDesdeVoltaje(1.0f, 25));
+  TEST_ASSERT_EQUAL(0, rangoTds(300));
+  TEST_ASSERT_EQUAL(1, rangoTds(800));
+  TEST_ASSERT_TRUE(aguaSalobre(1500));
+  TEST_ASSERT_FALSE(aguaSalobre(NAN));
+}
+
+void test_coag_cancelar_no_dosifica() {
+  Coagulacion c;
+  c.actualizar(300, 20, true, true, false, false, 1000);
+  c.actualizar(300, 20, true, true, false, false, 1000 + COAG_MEDIR_MS);
+  TEST_ASSERT_TRUE(c.bombaPac);
+  c.cancelar();
+  TEST_ASSERT_FALSE(c.bombaPac);
+  TEST_ASSERT_TRUE(c.estado == EstadoCoag::ESPERA);
+  TEST_ASSERT_TRUE(c.pendiente());
+}
+
 // ---------- Coagulación ----------
 // Lleva un lote de 100 L (20 % de R1) con agua muy turbia hasta DOSIFICANDO.
 static unsigned long hastaDosificar(Coagulacion& c, unsigned long t) {
@@ -218,6 +274,11 @@ int main() {
   UNITY_BEGIN();
   RUN_TEST(test_pac_tabla);
   RUN_TEST(test_cloro_por_ph);
+  RUN_TEST(test_tanque_frasco);
+  RUN_TEST(test_tanque_validacion);
+  RUN_TEST(test_coag_usa_recipiente_configurado);
+  RUN_TEST(test_tds);
+  RUN_TEST(test_coag_cancelar_no_dosifica);
   RUN_TEST(test_coag_ciclo_completo);
   RUN_TEST(test_coag_sin_doble_dosis);
   RUN_TEST(test_coag_respaldo_conservador);

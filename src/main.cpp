@@ -24,17 +24,22 @@ ControlValvula valvula;
 ControlPurga purga;
 ControlBomba transfer;
 Cloracion cloro;
-MediaMovil<MUESTRAS_PROMEDIO> mNivel, mNivel1, mNtu, mNtu2, mPh;
+MediaMovil<MUESTRAS_PROMEDIO> mNivel, mNivel1, mNtu, mNtu2, mPh, mTds;
 
 struct {
   float ntuR1 = NAN;        // sedimentos en R1
   bool r1Agua = true;       // flotador de R1
   float nivelR1 = NAN;      // % de R1 (ultrasonido)
   bool r1NivelOk = false;
+  float tds = NAN;          // sales disueltas en R1 (ppm), lectura actual
+  float tdsFuente = NAN;    // TDS del agua cruda del último lote (medido antes del PAC)
   float distancia = NAN, nivel = NAN, ph = NAN, ntuR2 = NAN;  // R2
+  // El que decide los avisos: el del lote, o la lectura actual si aún no hubo lote.
+  float tdsAviso() const { return !isnan(tdsFuente) ? tdsFuente : (r1Agua ? tds : NAN); }
   bool r2Ok = false;
-  float litrosR1() const { return r1NivelOk ? nivelR1 / 100 * R1_CAPACIDAD_L : 0; }
-  float litrosR2() const { return r2Ok ? nivel / 100 * R2_CAPACIDAD_L : 0; }
+  float distR1 = NAN;       // última distancia de R1 (cm), para calibrar
+  float litrosR1() const { return r1NivelOk ? tanqueR1.litrosDe(nivelR1) : 0; }
+  float litrosR2() const { return r2Ok ? tanqueR2.litrosDe(nivel) : 0; }
 } m;
 int fallosNivel = FALLOS_NIVEL_ALERTA;  // hasta la primera lectura válida
 int fallosNivelR1 = FALLOS_NIVEL_ALERTA;
@@ -44,7 +49,7 @@ Diagnostico diag = {VERDE, "Iniciando"};
 bool modoAP = false;
 
 // bits de estado: 1 purga, 2 transferencia, 4 goteo, 8 agitador, 16 bomba PAC, 32 válvula R1
-struct Punto { uint8_t nivel; uint16_t ntu; uint16_t ntu2; uint8_t ph10; uint8_t estado; };
+struct Punto { uint8_t nivel; uint16_t ntu; uint16_t ntu2; uint8_t ph10; uint8_t estado; uint16_t tds; };
 Punto historial[HISTORIAL_PUNTOS];
 int histInicio = 0, histCantidad = 0;
 
@@ -96,11 +101,13 @@ float voltios(int pin, float divisor) {
 void leerSensores() {
   m.ntuR1 = mNtu.agregar(ntuDesdeVoltaje(voltios(PIN_TURB_R1, TURB_DIVISOR)));
   m.r1Agua = digitalRead(PIN_FLOTADOR_R1) == LOW;
+  m.tds = mTds.agregar(tdsDesdeVoltaje(voltios(PIN_TDS_R1, 1.0f)));
   float d1 = distanciaMediana(PIN_TRIG_R1, PIN_ECHO_R1);
   if (isnan(d1)) {
     if (++fallosNivelR1 == FALLOS_NIVEL_ALERTA) Serial.println("R1: sensor de nivel sin respuesta");
   } else {
     fallosNivelR1 = 0;
+    m.distR1 = d1;
     m.nivelR1 = mNivel1.agregar(nivelR1DesdeDistancia(d1));
   }
   m.r1NivelOk = fallosNivelR1 < FALLOS_NIVEL_ALERTA;
@@ -124,6 +131,7 @@ void leerSensores() {
 bool r1Disponible() {
   if (!m.r1Agua) { motivoR1 = "R1 sin agua"; return false; }
   if (valvula.abierta) { motivoR1 = "Llenando R1"; return false; }
+  if (TDS_BLOQUEA && aguaSalobre(m.tdsAviso())) { motivoR1 = "Agua salobre"; return false; }
   if (!coag.lista()) { motivoR1 = coag.estado == EstadoCoag::LISTA ? "Agua por tratar" : textoCoag(coag.estado); return false; }
   if (!purga.sinSedimentos(m.ntuR1)) { motivoR1 = "R1 con sedimentos"; return false; }
   if (cloro.ocupado()) { motivoR1 = "R2 clorando"; return false; }
@@ -188,6 +196,13 @@ void mostrarLcd(unsigned long ahora) {
         snprintf(b, sizeof b, "R1 %3.0f%% PAC%3.0f%%", m.nivelR1, coag.pctRestante());
       else snprintf(b, sizeof b, "R1 nivel: ERROR");
       break;
+    case 5: {
+      static const char* r[] = {"bueno", "aceptable", "SALOBRE"};
+      snprintf(a, sizeof a, "TDS R1 %5.0fppm", isnan(m.tds) ? 0 : m.tds);
+      if (isnan(m.tdsFuente)) snprintf(b, sizeof b, "Sales: %s", r[rangoTds(m.tds)]);
+      else snprintf(b, sizeof b, "Lote %4.0f %s", m.tdsFuente, r[rangoTds(m.tdsFuente)]);
+      break;
+    }
     default:
       snprintf(a, sizeof a, "%s", modoAP ? "Red: " AP_SSID : "WiFi conectado");
       snprintf(b, sizeof b, "%s", (modoAP ? WiFi.softAPIP() : WiFi.localIP()).toString().c_str());
@@ -204,7 +219,8 @@ void guardarHistorial() {
   Punto p = {(uint8_t)(m.r2Ok ? lroundf(m.nivel) : 0), (uint16_t)lroundf(isnan(m.ntuR1) ? 0 : m.ntuR1),
              (uint16_t)lroundf(isnan(m.ntuR2) ? 0 : m.ntuR2), (uint8_t)lroundf(isnan(m.ph) ? 0 : m.ph * 10),
              (uint8_t)(purga.encendida | transfer.encendida << 1 | cloro.goteoAbierto << 2 |
-                       (coag.rpm > 0) << 3 | coag.bombaPac << 4 | valvula.abierta << 5)};
+                       (coag.rpm > 0) << 3 | coag.bombaPac << 4 | valvula.abierta << 5),
+             (uint16_t)lroundf(isnan(m.tds) ? 0 : m.tds)};
   if (histCantidad == HISTORIAL_PUNTOS) histInicio = (histInicio + 1) % HISTORIAL_PUNTOS;
   else histCantidad++;
   historial[(histInicio + histCantidad - 1) % HISTORIAL_PUNTOS] = p;
@@ -232,8 +248,40 @@ unsigned long tGuardado = 0;
 
 Respaldo respaldoActual() { return {RESPALDO_VERSION, coag.respaldo(), cloro.respaldo()}; }
 
+// ---------- Medidas de los recipientes (configurables desde la página) ----------
+constexpr uint16_t GEOM_VERSION = 1;
+struct Geometria {
+  uint16_t version;
+  Tanque r1, r2;
+};
+
+void cargarGeometria() {
+  Geometria g;
+  if (prefs.getBytesLength("geom") == sizeof g && prefs.getBytes("geom", &g, sizeof g) == sizeof g &&
+      g.version == GEOM_VERSION && Tanque::valido(g.r1.vacioCm, g.r1.llenoCm, g.r1.litros) &&
+      Tanque::valido(g.r2.vacioCm, g.r2.llenoCm, g.r2.litros)) {
+    tanqueR1 = g.r1;
+    tanqueR2 = g.r2;
+  }
+  Serial.printf("Recipientes: R1 %.1f-%.1f cm %.1f L, R2 %.1f-%.1f cm %.1f L\n", tanqueR1.vacioCm,
+                tanqueR1.llenoCm, tanqueR1.litros, tanqueR2.vacioCm, tanqueR2.llenoCm, tanqueR2.litros);
+}
+
+// Cambia las medidas de un recipiente; devuelve el error o nullptr si quedó guardado.
+const char* cambiarGeometria(bool esR1, float vacio, float lleno, float litros) {
+  if (!Tanque::valido(vacio, lleno, litros))
+    return "Medidas no validas: vacio debe ser mayor que lleno (3 cm o mas), lleno >= 2 cm y litros > 0";
+  Tanque& t = esR1 ? tanqueR1 : tanqueR2;
+  t = {vacio, lleno, litros};
+  Geometria g = {GEOM_VERSION, tanqueR1, tanqueR2};
+  prefs.putBytes("geom", &g, sizeof g);
+  if (esR1) { mNivel1.reiniciar(); coag.olvidarBase(); }
+  else mNivel.reiniciar();
+  Serial.printf("Recipientes: %s ahora %.1f-%.1f cm, %.1f L\n", esR1 ? "R1" : "R2", vacio, lleno, litros);
+  return nullptr;
+}
+
 void cargarRespaldo(unsigned long ahora) {
-  prefs.begin("aqua", false);
   Respaldo r;
   if (prefs.getBytesLength("estado") != sizeof r || prefs.getBytes("estado", &r, sizeof r) != sizeof r ||
       r.version != RESPALDO_VERSION) {
@@ -287,10 +335,11 @@ void apiEstado() {
       nombreAlerta(diag.alerta), diag.causa, ahora / 1000);
   add("\"r1\":{\"agua\":%s,\"ntu\":%.0f,\"sedimento\":%d,\"disponible\":%s,\"motivo\":\"%s\","
       "\"nivel_ok\":%s,\"nivel\":%.1f,\"litros\":%.0f,\"valvula\":%s,\"valvula_motivo\":\"%s\","
-      "\"llenados\":%lu},",
+      "\"llenados\":%lu,\"tds\":%.0f,\"tds_fuente\":%.0f,\"rango_tds\":%d},",
       tf(m.r1Agua), isnan(m.ntuR1) ? 0 : m.ntuR1, nivelSedimento(m.ntuR1), tf(motivoR1[0] == 0), motivoR1,
       tf(m.r1NivelOk), m.r1NivelOk ? m.nivelR1 : 0, m.litrosR1(), tf(valvula.abierta), valvula.motivo,
-      valvula.llenados);
+      valvula.llenados, isnan(m.tds) ? 0 : m.tds, isnan(m.tdsFuente) ? -1 : m.tdsFuente,
+      rangoTds(m.tdsAviso()));
   add("\"coag\":{\"estado\":\"%s\",\"pendiente\":%s,\"ocupado\":%s,\"falta_s\":%lu,\"rpm\":%d,\"pac_on\":%s,"
       "\"ntu_medida\":%.0f,\"ppm\":%.0f,\"litros\":%.0f,\"ml_objetivo\":%.0f,\"ml_aplicados\":%.0f,"
       "\"sin_pac\":%s,\"sin_nivel\":%s,\"fuera_tabla\":%s,\"lotes\":%lu,\"ml_total\":%.0f,"
@@ -322,24 +371,30 @@ void apiEstado() {
   add("\"cfg\":{\"sed_medio\":%.0f,\"sed_limpio\":%.0f,\"ph_min\":%.1f,\"ph_opt\":%.1f,\"ph_max\":%.1f,"
       "\"gotas_l\":%.1f,\"turb_max\":%.0f,\"turb_ideal\":%.0f,\"r2_on\":%.0f,\"r2_off\":%.0f,"
       "\"coag_min\":%.0f,\"pac_stock\":%.0f,\"rpm_rapida\":%d,\"rpm_lenta\":%d,\"modo_demo\":%s,"
-      "\"claves_defecto\":%s}}",
+      "\"claves_defecto\":%s,\"tds_bueno\":%.0f,\"tds_max\":%.0f,\"tds_bloquea\":%s}}",
       SED_MEDIO_NTU, SED_LIMPIO_NTU, PH_MIN, PH_OPTIMO_MAX, PH_MAX, CLORO_GOTAS_POR_LITRO,
       TURB_R2_MAX_CLORO, TURB_R2_IDEAL, R2_ENCENDER, R2_APAGAR, COAG_MIN_NTU, PAC_STOCK_PPM,
-      AGIT_RPM_RAPIDA, AGIT_RPM_LENTA, tf(MODO_DEMO), tf(clavesPorDefecto()));
+      AGIT_RPM_RAPIDA, AGIT_RPM_LENTA, tf(MODO_DEMO), tf(clavesPorDefecto()), TDS_BUENO_PPM,
+      TDS_MAX_PPM, tf(TDS_BLOQUEA));
+  j.remove(j.length() - 1);  // quita la última } para agregar las medidas de los recipientes
+  add(",\"geom\":{\"r1\":{\"vacio\":%.1f,\"lleno\":%.1f,\"litros\":%.1f,\"dist\":%.1f},"
+      "\"r2\":{\"vacio\":%.1f,\"lleno\":%.1f,\"litros\":%.1f,\"dist\":%.1f}}}",
+      tanqueR1.vacioCm, tanqueR1.llenoCm, tanqueR1.litros, isnan(m.distR1) ? -1 : m.distR1, tanqueR2.vacioCm,
+      tanqueR2.llenoCm, tanqueR2.litros, isnan(m.distancia) ? -1 : m.distancia);
   server.sendHeader("Access-Control-Allow-Origin", "*");  // panel abierto como archivo local
   server.send(200, "application/json", j);
 }
 
 void apiHistorial() {
   String j;
-  j.reserve(histCantidad * 18 + 80);
+  j.reserve(histCantidad * 24 + 80);
   j = "{\"intervalo_s\":" + String(INTERVALO_HISTORIAL_MS / 1000) + ",\"max\":" +
       String(HISTORIAL_PUNTOS) + ",\"datos\":[";
   for (int i = 0; i < histCantidad; i++) {
     const Punto& p = historial[(histInicio + i) % HISTORIAL_PUNTOS];
     if (i) j += ',';
     j += '[' + String(p.nivel) + ',' + String(p.ntu) + ',' + String(p.ph10) + ',' + String(p.estado) + ',' +
-         String(p.ntu2) + ']';
+         String(p.ntu2) + ',' + String(p.tds) + ']';
   }
   j += "]}";
   server.sendHeader("Access-Control-Allow-Origin", "*");
@@ -353,6 +408,34 @@ void apiControl() {
   }
   String a = server.arg("accion");
   unsigned long ahora = millis();
+
+  // Medidas de los recipientes: a mano, o tomando la distancia actual del sensor.
+  if (a == "geom" || a == "cal_vacio" || a == "cal_lleno") {
+    bool esR1 = server.arg("tanque") == "r1";
+    const Tanque& t = esR1 ? tanqueR1 : tanqueR2;
+    float dist = esR1 ? m.distR1 : m.distancia;
+    float vacio = t.vacioCm, lleno = t.llenoCm, litros = t.litros;
+    const char* err = nullptr;
+    if (a == "geom") {
+      vacio = server.arg("vacio").toFloat();
+      lleno = server.arg("lleno").toFloat();
+      litros = server.arg("litros").toFloat();
+    } else if (isnan(dist)) {
+      err = "El sensor de nivel no responde";
+    } else if (a == "cal_vacio") {
+      vacio = dist;
+    } else {
+      lleno = dist;
+    }
+    if (!err) err = cambiarGeometria(esR1, vacio, lleno, litros);
+    if (err) {
+      server.send(400, "application/json", String("{\"ok\":false,\"error\":\"") + err + "\"}");
+      return;
+    }
+    server.send(200, "application/json", "{\"ok\":true}");
+    return;
+  }
+
   if (a == "p_auto") purga.modoAutomatico();
   else if (a == "p_on") purga.manual(true);
   else if (a == "p_off") purga.manual(false);
@@ -448,6 +531,7 @@ void setup() {
   analogSetPinAttenuation(PIN_TURB_R1, ADC_11db);
   analogSetPinAttenuation(PIN_PH_R2, ADC_11db);
   analogSetPinAttenuation(PIN_TURB_R2, ADC_11db);
+  analogSetPinAttenuation(PIN_TDS_R1, ADC_11db);
 
   if (esp_reset_reason() == ESP_RST_TASK_WDT) Serial.println("Aviso: reinicio por watchdog");
   lcd.init();
@@ -457,6 +541,8 @@ void setup() {
   lcd.print("Conectando...");
   Serial.printf("AquaAlerta iniciada (modo %s)\n", MODO_DEMO ? "DEMO: tiempos cortos" : "REAL");
   if (clavesPorDefecto()) Serial.println("AVISO: PIN_WEB o AP_PASSWORD de fabrica, cambiarlos en secrets.h");
+  prefs.begin("aqua", false);
+  cargarGeometria();
   cargarRespaldo(millis());
 
   iniciarRed();
@@ -485,7 +571,14 @@ void loop() {
     EstadoCoag coAntes = coag.estado;
     bool r1Ocupado = purga.encendida || purga.estado != EstadoPurga::LIMPIO || transfer.encendida ||
                      valvula.abierta;
-    coag.actualizar(m.ntuR1, m.nivelR1, m.r1NivelOk, m.r1Agua, r1Ocupado, transfer.encendida, t);
+    bool salobre = TDS_BLOQUEA && aguaSalobre(m.tds);  // lectura actual: agua aún sin PAC
+    coag.actualizar(m.ntuR1, m.nivelR1, m.r1NivelOk, m.r1Agua, r1Ocupado || salobre, transfer.encendida, t);
+    if (coAntes == EstadoCoag::MIDIENDO && coag.estado != EstadoCoag::MIDIENDO && m.r1Agua) {
+      m.tdsFuente = m.tds;  // agua cruda del lote, antes del PAC
+      Serial.printf("TDS: agua del lote %.0f ppm (%s)\n", m.tdsFuente,
+                    aguaSalobre(m.tdsFuente) ? "salobre" : (rangoTds(m.tdsFuente) ? "aceptable" : "buena"));
+      if (TDS_BLOQUEA && aguaSalobre(m.tdsFuente)) coag.cancelar();
+    }
     aplicarRele(PIN_RELE_PAC, coag.bombaPac);
     aplicarAgitador(coag.rpm);
     if (coag.estado != coAntes) {
@@ -538,7 +631,7 @@ void loop() {
     }
 
     Diagnostico d = diagnosticar({m.r2Ok, m.nivel, m.ph, m.ntuR2, m.r1Agua, m.ntuR1, m.r1NivelOk, &coag, &purga,
-                                  &transfer, &cloro});
+                                  &transfer, &cloro, m.tdsAviso()});
     if (d.alerta != diag.alerta || strcmp(d.causa, diag.causa) != 0)
       Serial.printf("Estado: %s (%s)\n", nombreAlerta(d.alerta), d.causa);
     diag = d;
@@ -550,15 +643,15 @@ void loop() {
     tHistorial = ahora;
     guardarHistorial();
     Serial.printf("{\"ntu_r1\":%.0f,\"r1_agua\":%d,\"r1\":%.1f,\"coag\":\"%s\",\"rpm\":%d,\"valvula\":%d,"
-                  "\"r2\":%.1f,\"ph\":%.2f,\"ntu_r2\":%.1f,\"purga\":%d,\"transfer\":%d,\"goteo\":%d,"
+                  "\"tds\":%.0f,\"r2\":%.1f,\"ph\":%.2f,\"ntu_r2\":%.1f,\"purga\":%d,\"transfer\":%d,\"goteo\":%d,"
                   "\"estado\":\"%s\"}\n",
-                  m.ntuR1, m.r1Agua, m.nivelR1, textoCoag(coag.estado), coag.rpm, valvula.abierta, m.nivel, m.ph,
+                  m.ntuR1, m.r1Agua, m.nivelR1, textoCoag(coag.estado), coag.rpm, valvula.abierta, m.tds, m.nivel, m.ph,
                   m.ntuR2, purga.encendida, transfer.encendida, cloro.goteoAbierto, diag.causa);
   }
 
   if (ahora - tPantalla >= CAMBIO_PANTALLA_MS) {
     tPantalla = ahora;
-    pantalla = (pantalla + 1) % 6;
+    pantalla = (pantalla + 1) % 7;
     mostrarLcd(ahora);
   }
 

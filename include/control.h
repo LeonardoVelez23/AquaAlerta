@@ -4,16 +4,37 @@
 
 #include "config.h"
 
-// ---------- Conversiones ----------
-inline float nivelDesdeDistancia(float distCm) {
-  float p = (R2_DIST_VACIO_CM - distCm) / (R2_DIST_VACIO_CM - R2_DIST_LLENO_CM) * 100.0f;
-  return p < 0 ? 0 : (p > 100 ? 100 : p);
-}
+// ---------- Recipientes (configurables sin recompilar) ----------
+// Distancias medidas desde el sensor (en la tapa) hasta el agua.
+struct Tanque {
+  float vacioCm;  // sensor → fondo (recipiente vacío)
+  float llenoCm;  // sensor → nivel máximo
+  float litros;   // litros entre vacío y lleno
 
-inline float nivelR1DesdeDistancia(float distCm) {
-  float p = (R1_DIST_VACIO_CM - distCm) / (R1_DIST_VACIO_CM - R1_DIST_LLENO_CM) * 100.0f;
-  return p < 0 ? 0 : (p > 100 ? 100 : p);
-}
+  float alturaCm() const { return vacioCm - llenoCm; }
+  float nivel(float distCm) const {
+    float p = (vacioCm - distCm) / alturaCm() * 100.0f;
+    return p < 0 ? 0 : (p > 100 ? 100 : p);
+  }
+  float litrosDe(float pct) const { return pct / 100.0f * litros; }
+  // Un umbral de subida en % nunca más chico que el ruido del sensor: en un
+  // frasco de 20 cm, 1 % son 2 mm (ruido); en un aljibe de 1 m, 1 cm.
+  float umbral(float pct) const {
+    float minimo = DIST_RUIDO_CM / alturaCm() * 100.0f;
+    return pct > minimo ? pct : minimo;
+  }
+  static bool valido(float vacio, float lleno, float litros) {
+    return !isnan(vacio) && !isnan(lleno) && !isnan(litros) && lleno >= DIST_MIN_VALIDA_CM &&
+           vacio <= DIST_MAX_VALIDA_CM && vacio - lleno >= GEOM_MIN_ALTURA_CM && litros > 0;
+  }
+};
+// Medidas en uso (las de config.h hasta que se cambien desde la página).
+inline Tanque tanqueR1 = {R1_DIST_VACIO_CM, R1_DIST_LLENO_CM, R1_CAPACIDAD_L};
+inline Tanque tanqueR2 = {R2_DIST_VACIO_CM, R2_DIST_LLENO_CM, R2_CAPACIDAD_L};
+
+// ---------- Conversiones ----------
+inline float nivelDesdeDistancia(float distCm) { return tanqueR2.nivel(distCm); }
+inline float nivelR1DesdeDistancia(float distCm) { return tanqueR1.nivel(distCm); }
 
 inline float ntuDesdeVoltaje(float v) {
   if (v >= 4.2f) return 0;  // sobre el rango de la curva: agua limpia
@@ -21,6 +42,21 @@ inline float ntuDesdeVoltaje(float v) {
   if (v < 2.5f || ntu > 3000) ntu = 3000;  // tope del sensor
   return ntu < 0 ? 0 : ntu;
 }
+
+// TDS (ppm) del módulo tipo Gravity TDS, con compensación de temperatura
+// (la conductividad sube ~2 % por °C). Curva del fabricante.
+inline float tdsDesdeVoltaje(float v, float tempC = TDS_TEMP_C) {
+  if (isnan(v) || v <= 0) return 0;
+  float vc = v / (1.0f + 0.02f * (tempC - 25.0f));
+  float tds = (133.42f * vc * vc * vc - 255.86f * vc * vc + 857.39f * vc) * 0.5f * TDS_K;
+  return tds < 0 ? 0 : tds;
+}
+// 0 bueno (< 600), 1 aceptable (600–1000), 2 salobre (> 1000)
+inline int rangoTds(float ppm) {
+  if (isnan(ppm) || ppm < TDS_BUENO_PPM) return 0;
+  return ppm <= TDS_MAX_PPM ? 1 : 2;
+}
+inline bool aguaSalobre(float ppm) { return rangoTds(ppm) == 2; }
 
 // Recta de calibración con dos buffers (pH 7 y pH 4).
 inline float phDesdeVoltaje(float v) {
@@ -77,6 +113,7 @@ inline int rpmAPwm(int rpm) {
 template <int N>
 class MediaMovil {
  public:
+  void reiniciar() { pos_ = n_ = 0; }
   float agregar(float v) {
     datos_[pos_] = v;
     pos_ = (pos_ + 1) % N;
@@ -140,6 +177,16 @@ class Coagulacion {
     mlRecarga_ = mlTotal;
     if (estado == EstadoCoag::SIN_PAC) estado = EstadoCoag::ESPERA;
   }
+  // Agua salobre (con TDS_BLOQUEA): no dosifica; el lote queda pendiente.
+  void cancelar() {
+    if (estado == EstadoCoag::MIDIENDO || estado == EstadoCoag::DOSIFICANDO) {
+      mlPrevios_ += mlLote();
+      mlAplicados = 0;
+      estado = EstadoCoag::ESPERA;
+      bombaPac = false;
+      rpm = 0;
+    }
+  }
   // Botón "Tratar R1 ahora".
   void iniciar() {
     if (!ocupado()) { pendiente_ = true; estado = EstadoCoag::ESPERA; }
@@ -152,6 +199,8 @@ class Coagulacion {
            estado == EstadoCoag::SEDIMENTANDO;
   }
   bool lista() const { return estado == EstadoCoag::LISTA && !pendiente_; }
+  // Cambiaron las medidas de R1: el nivel de referencia en % ya no vale.
+  void olvidarBase() { hayBase_ = false; }
   float mlPrevios() const { return mlPrevios_; }
 
   // Para guardar en flash. Durante la dosis se guarda el peor caso (toda la
@@ -201,7 +250,7 @@ class Coagulacion {
     // Transfiriendo, R1 tiene que bajar: cualquier subida es agua cruda entrando.
     if (nivelOk && !ocupado()) {
       if (!hayBase_ || nivel < base_) { base_ = nivel; hayBase_ = true; }
-      if (nivel >= base_ + (transfiriendo ? R1_SUBIDA_TRANSFER : R1_SUBIDA_LOTE)) {
+      if (nivel >= base_ + tanqueR1.umbral(transfiriendo ? R1_SUBIDA_TRANSFER : R1_SUBIDA_LOTE)) {
         pendiente_ = true;
         base_ = nivel;
         if (estado == EstadoCoag::LISTA) estado = EstadoCoag::ESPERA;
@@ -282,7 +331,7 @@ class Coagulacion {
       terminarLote(nivel, nivelOk);
       return;
     }
-    litrosLote = nivel / 100.0f * R1_CAPACIDAD_L;
+    litrosLote = tanqueR1.litrosDe(nivel);
     // Lote retomado tras quedarse sin agua o un corte: solo lo que falta.
     mlObjetivo = mlPac(ppm, litrosLote) - mlPrevios_;
     if (mlObjetivo < 0) mlObjetivo = 0;
@@ -398,7 +447,7 @@ class ControlValvula {
     bool quiere = abierta;
     const char* porQue = motivo;
     if (abierta) {
-      if (nivelOk && nivel > nivelRef_ + R1_SUBIDA_VALVULA) { nivelRef_ = nivel; tSubio_ = ahora; }
+      if (nivelOk && nivel > nivelRef_ + tanqueR1.umbral(R1_SUBIDA_VALVULA)) { nivelRef_ = nivel; tSubio_ = ahora; }
       if (!nivelOk)                     { quiere = false; porQue = "Sin lectura R1"; }
       else if (r1Ocupado)               { quiere = false; porQue = "R1 ocupado"; }
       else if (nivel >= R1_LLENO_MAX)   { quiere = false; porQue = "R1 lleno"; }
@@ -420,7 +469,7 @@ class ControlValvula {
     } else if (!quiere && abierta) {
       abierta = false;
       tCerro_ = ahora;
-      tratar = nivelOk && nivel >= nivelAbrir_ + R1_SUBIDA_VALVULA;
+      tratar = nivelOk && nivel >= nivelAbrir_ + tanqueR1.umbral(R1_SUBIDA_VALVULA);
       if (tratar) llenados++;
     }
     motivo = abierta ? "Llenando R1" : porQue;  // cerrada: muestra por qué cerró la última vez
@@ -516,7 +565,7 @@ class ControlBomba {
 
   void revisarFuncionamiento(const EntradaBomba& e) {
     unsigned long t = e.ahora - desde_;
-    if (esperandoRespuesta_ && e.nivelOk && e.nivel >= nivelInicial_ + SUBIDA_MINIMA) {
+    if (esperandoRespuesta_ && e.nivelOk && e.nivel >= nivelInicial_ + tanqueR2.umbral(SUBIDA_MINIMA)) {
       esperandoRespuesta_ = false;
       ultimaRespuestaS = t / 1000.0f;
     }
@@ -545,7 +594,7 @@ class ControlBomba {
     encendida = false;
     msEncendida += e.ahora - desde_;
     if (e.nivelOk && e.nivel > nivelInicial_)
-      litrosBombeados += (e.nivel - nivelInicial_) / 100.0f * R2_CAPACIDAD_L;
+      litrosBombeados += tanqueR2.litrosDe(e.nivel - nivelInicial_);
     huboApagado_ = true;
     hastaApagado_ = e.ahora;
   }
@@ -758,6 +807,7 @@ struct EstadoSistema {
   const ControlPurga* purga;
   const ControlBomba* transfer;
   const Cloracion* cloro;
+  float tds;  // ppm del agua cruda (último lote, o la lectura actual si aún no hay lote)
 };
 
 inline Diagnostico diagnosticar(const EstadoSistema& s) {
@@ -772,6 +822,7 @@ inline Diagnostico diagnosticar(const EstadoSistema& s) {
   if (c == EstadoCloro::TURBIA || !claraParaClorar(s.ntuR2)) return {AMARILLO, "R2 turbia:filtro"};
   if (c == EstadoCloro::PH_FUERA) return {AMARILLO, "pH alto:corregir"};
   if (rangoPh(s.ph) == 0) return {AMARILLO, "pH bajo (acido)"};
+  if (aguaSalobre(s.tds)) return {AMARILLO, "Agua salobre"};
   if (s.cloro->pctRestante() < GOTERO_AVISO_PCT) return {AMARILLO, "Recargar cloro"};
   if (s.coag->pctRestante() < PAC_AVISO_PCT) return {AMARILLO, "Recargar PAC"};
   if (!s.r1NivelOk) return {AMARILLO, "Falla nivel R1"};

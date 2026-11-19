@@ -45,6 +45,7 @@ en su **propia red WiFi** si en la casa no hay internet.
 | Sensor de turbidez SEN0189 cerca del fondo de R1 · en Wokwi potenciómetro `turb` | Cantidad de sedimentos | GPIO 35 |
 | Flotador de nivel mínimo en R1 · en Wokwi interruptor deslizante | ¿R1 tiene agua? (protege las bombas) | GPIO 19 |
 | Relé + electroválvula NC 12 V en la entrada de agua cruda · en Wokwi LED verde lima | Deja entrar agua solo con R1 en reposo | GPIO 15 |
+| Sensor TDS con driver (tipo Gravity TDS) en R1 · en Wokwi potenciómetro `tds` | Sales y minerales disueltos del agua de la fuente | GPIO 39 (VN) |
 | JSN-SR04T en R1 · en Wokwi HC-SR04 `ultraR1` | Litros de R1 (para la dosis de PAC) y llegada de agua nueva | TRIG 16 / ECHO 17 |
 | Relé + bomba dosificadora de PAC · en Wokwi LED naranja | Coagulante | GPIO 32 |
 | Motor DC con paleta + driver/MOSFET (PWM) · en Wokwi LED cian (brillo = velocidad) | Agitador: mezcla rápida y lenta | GPIO 2 |
@@ -56,8 +57,41 @@ en su **propia red WiFi** si en la casa no hay internet.
 | Relé + bomba dosificadora peristáltica (o electroválvula de goteo) · en Wokwi LED blanco | Gotas de cloro | GPIO 13 |
 | LED verde / amarillo / rojo | Semáforo | 26 / 27 / 14 |
 | Buzzer | Alarma en rojo | GPIO 25 |
-| LCD 16x2 I2C | 6 pantallas: R1, R2+pH, bombas, cloro, coagulación, red | SDA 21 / SCL 22 |
+| LCD 16x2 I2C | 7 pantallas: R1, R2+pH, bombas, cloro, coagulación, TDS, red | SDA 21 / SCL 22 |
 | Pulsador | Silencia 60 s y reinicia fallas | GPIO 4 |
+
+## Adaptar a cualquier recipiente
+
+El mismo firmware sirve para frascos de 8 L, baldes o un aljibe de 500 L, **sin
+recompilar**:
+
+1. En la página, tarjeta **📏 Recipientes** (pide el PIN): con R1 vacío pulsar
+   *Está vacío ahora*; llenarlo hasta el máximo y pulsar *Está lleno ahora*;
+   escribir los litros y *Guardar*. Igual con R2. Queda guardado en la flash.
+2. También se pueden escribir las distancias a mano (sensor → fondo y sensor →
+   nivel máximo, en cm).
+3. Los umbrales de "subió el nivel" se ajustan solos: nunca son menores que el
+   ruido del ultrasonido (0,5 cm), así un frasco chico no da falsas alarmas.
+
+Requisitos: paredes rectas (litros proporcionales a la altura) y el sensor
+centrado en la tapa. **Sensor según el tamaño:** HC-SR04 para frascos y baldes
+(mide desde ~2 cm, no es impermeable: que no lo moje el agua); JSN-SR04T para
+tanques grandes (impermeable, pero no mide los primeros ~20–25 cm). El código
+es el mismo para los dos.
+
+**Bomba o válvula, da igual:** cada salida es un relé que significa "que pase
+agua". Montaje en **cascada** (R1 arriba, filtro en medio, R2 abajo):
+
+| Paso | Con bombas | En cascada (gravedad) |
+|---|---|---|
+| Fuente → R1 (GPIO 15) | bomba sumergible en el río/estanque | electroválvula si la red llega con presión |
+| R1 → filtro → R2 (GPIO 33) | bomba de transferencia | electroválvula de 12 V en el grifo de R1 |
+| Purga del lodo (GPIO 23) | bomba con la manguera en el fondo | válvula en un orificio en la base de R1 |
+
+En un frasco dispensador, el grifo queda 2–3 cm sobre el fondo: sirve para
+pasar agua al filtro **sin tomar lodo**. La purga necesita su propia salida en
+el fondo. Lo que sí depende de las bombas (no del recipiente) son los caudales
+de PAC, cloro y purga en `config.h`: medirlos con una probeta.
 
 ## Cómo funciona cada etapa
 
@@ -121,6 +155,25 @@ botón *Tratar R1 ahora*:
   el PAC que ya echó**: nunca repite la dosis entera.
 - Mientras coagula, no purga ni transfiere: el agua tiene que estar quieta para
   que caigan los flóculos.
+
+### 1b. Sales disueltas (TDS) del agua de la fuente
+
+El sensor TDS en R1 mide las sales y minerales disueltos (ppm). Es lo único que
+**ni el filtro ni el cloro quitan**: si la fuente es salobre (por ejemplo, un
+estero con marea), tratarla gasta PAC y cloro en agua que igual no sirve.
+
+- Se toma la lectura del **agua cruda de cada lote**, al terminar de medir y
+  **antes del PAC** (el coagulante también suma sales).
+- Umbrales (OMS, aceptabilidad por sabor): < 600 ppm buena · 600–1000
+  aceptable · **> 1000 salobre** → amarillo "Agua salobre".
+- `TDS_BLOQUEA = true`: con agua salobre no dosifica PAC ni pasa agua a R2
+  (ahorra insumos). Por defecto `false` (solo avisa) hasta calibrar el sensor.
+- Va en R1 y no en R2 porque dos sondas que inyectan corriente (TDS y pH) en el
+  mismo recipiente alteran sus lecturas.
+- **Calibrar:** medir una solución patrón (p. ej. 342 ppm de NaCl, o agua
+  embotellada con TDS en la etiqueta) y poner `TDS_K = patrón / lectura`. Sin
+  sensor de temperatura se asume 25 °C (`TDS_TEMP_C`); cada °C cambia ~2 %.
+- El TDS **no** detecta bacterias, cloro ni metales específicos.
 
 ### 2. Sedimentos y purga en R1
 
@@ -427,6 +480,9 @@ wokwi-cli --scenario scenarios/flujo-completo.yaml --timeout 600000 .
 - **Sensor de turbidez de R2** donde cae el agua del filtro, sumergido sin
   tocar el fondo, protegido de la luz directa (la luz altera la lectura).
   Divisor 10 kΩ / 20 kΩ → GPIO 36.
+- **Sensor TDS** en R1, sumergido a media altura (lejos del agitador y de la
+  caída del PAC). Módulo alimentado a **3,3 V**: su salida (0–2,3 V) va directo
+  al GPIO 39, sin divisor. La sonda no debe pasar de 55 °C.
 - **Sensor de pH:** sonda siempre húmeda (guardarla en solución de
   almacenamiento), **calibrar con buffers pH 7 y pH 4** y anotar los voltajes en
   `PH_V7` y `PH_V4`. Salida Po → divisor 10 kΩ / 20 kΩ → GPIO 34. Medir lejos de

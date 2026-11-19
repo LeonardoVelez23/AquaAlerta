@@ -46,7 +46,7 @@ table{border-collapse:collapse;font-size:.85rem;margin-top:6px}td,th{padding:3px
   <div class="tq"><h3>R1 · Coagulación y sedimentos</h3>
    <div class="tanque"><div class="agua" id="a1" style="height:85%"></div><div class="lodo" id="lodo1" style="height:0"></div>
     <div class="pct" id="p1">–</div></div>
-   <p><b id="l1">–</b> L · <b id="sed">–</b> · <span id="n1">–</span> NTU<br><span id="s1">–</span></p></div>
+   <p><b id="l1">–</b> L · <b id="sed">–</b> · <span id="n1">–</span> NTU<br>Sales (TDS): <b id="td">–</b> ppm <span id="tdt"></span><br><span id="s1">–</span></p></div>
   <div class="paso">
    <span class="ic" id="icV">🚰</span>entrada
    <span class="ic" id="icC">🧪</span>PAC
@@ -120,6 +120,28 @@ table{border-collapse:collapse;font-size:.85rem;margin-top:6px}td,th{padding:3px
   <small>Protecciones: no pasa agua a R2 mientras R1 se esté coagulando, tenga sedimentos, esté sin agua o R2 se esté clorando;
    corte al 95 %; si R2 no sube con la bomba encendida avisa «Filtro tapado?».</small></div>
 
+ <div class="card"><b>📏 Recipientes</b>
+  <p style="margin:.4rem 0"><small>Sirve cualquier recipiente de paredes rectas. <b>Vacío</b>: distancia del sensor al fondo.
+   <b>Lleno</b>: distancia del sensor al nivel máximo. <b>L</b>: litros entre vacío y lleno.
+   Lo más fácil: con el recipiente vacío, «Está vacío ahora»; llénalo hasta el máximo y «Está lleno ahora». Pide el PIN de arriba.</small></p>
+  <div class="ctrl"><b style="min-width:110px">R1:</b>
+   vacío <input id="gvr1" type="number" step="0.1" min="2"> cm ·
+   lleno <input id="glr1" type="number" step="0.1" min="2"> cm ·
+   <input id="gLr1" type="number" step="0.1" min="0.1"> L
+   <button onclick="geom('r1')">Guardar</button>
+   <button class="sec" onclick="enviar('cal_vacio','tanque=r1')">Está vacío ahora</button>
+   <button class="sec" onclick="enviar('cal_lleno','tanque=r1')">Está lleno ahora</button>
+   <small>sensor: <b id="gdr1">–</b> cm</small></div>
+  <div class="ctrl"><b style="min-width:110px">R2:</b>
+   vacío <input id="gvr2" type="number" step="0.1" min="2"> cm ·
+   lleno <input id="glr2" type="number" step="0.1" min="2"> cm ·
+   <input id="gLr2" type="number" step="0.1" min="0.1"> L
+   <button onclick="geom('r2')">Guardar</button>
+   <button class="sec" onclick="enviar('cal_vacio','tanque=r2')">Está vacío ahora</button>
+   <button class="sec" onclick="enviar('cal_lleno','tanque=r2')">Está lleno ahora</button>
+   <small>sensor: <b id="gdr2">–</b> cm</small></div>
+  <small id="gresp"></small></div>
+
  <div class="card"><b>Métricas</b><div class="kpis" style="margin-top:10px">
   <div class="kpi"><span>Lotes coagulados</span><b id="xC">–</b><span id="xCt"></span></div>
   <div class="kpi"><span>Purgas de lodo</span><b id="xP">–</b><span id="xPt"></span></div>
@@ -145,6 +167,8 @@ async function estado(){
   $('lodo1').style.height=Math.min(40,r1.ntu/300*40)+'%';
   $('p1').textContent=['🙂','😐','🟤'][r1.sedimento];
   $('sed').textContent='Sedimentos: '+['pocos','medios','muchos'][r1.sedimento];$('n1').textContent=r1.ntu;
+  if(d.geom)pintarGeom(d.geom);
+  $('td').textContent=r1.tds;$('tdt').textContent=['· buena','· aceptable','· ⚠ salobre: el filtro y el cloro no quitan las sales'][r1.rango_tds]+(r1.tds_fuente>=0?' (lote: '+r1.tds_fuente+' ppm)':'');
   $('s1').textContent=!r1.agua?'⚠ R1 sin agua':K.ocupado?K.estado+(K.falta_s>0?' · '+K.falta_s+' s':''):P.estado=='PULSO'?'Purgando lodo '+P.pulso+'/'+P.max_pulsos:
    P.estado=='PAUSA'?'Asentando '+P.pulso+'/'+P.max_pulsos:(r1.disponible?'✔ sin sedimentos, lista':r1.motivo);
   // R2
@@ -214,11 +238,24 @@ async function historial(){
   linea(p=>p[2]/140,'#8b5cf6',[]);
  }catch(e){}
 }
-async function enviar(accion){
+async function enviar(accion,extra){
  const pin=$('pin').value;try{sessionStorage.setItem('pin',pin)}catch(e){}
  const r=await fetch('/api/control',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
-  body:'accion='+accion+'&pin='+encodeURIComponent(pin)});
- $('resp').textContent=r.ok?'✔ listo':(r.status==403?'PIN incorrecto':'error');estado();
+  body:'accion='+accion+'&pin='+encodeURIComponent(pin)+(extra?'&'+extra:'')});
+ let msg=r.ok?'✔ listo':(r.status==403?'PIN incorrecto':'error');
+ if(!r.ok&&r.status!=403){try{msg=(await r.json()).error||msg}catch(e){}}
+ $(extra&&extra.startsWith('tanque')?'gresp':'resp').textContent=msg;estado();
+}
+function geom(t){
+ enviar('geom','tanque='+t+'&vacio='+$('gv'+t).value+'&lleno='+$('gl'+t).value+'&litros='+$('gL'+t).value);
+}
+// Medidas de los recipientes: no pisa lo que la persona está escribiendo.
+function pintarGeom(g){
+ ['r1','r2'].forEach(t=>{
+  const x=g[t];
+  [['gv','vacio'],['gl','lleno'],['gL','litros']].forEach(([id,k])=>{const e=$(id+t);if(document.activeElement!==e)e.value=x[k]});
+  $('gd'+t).textContent=x.dist<0?'sin lectura':x.dist.toFixed(1);
+ });
 }
 estado();historial();setInterval(estado,2000);setInterval(historial,10000);
 </script></body></html>)rawliteral";

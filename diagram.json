@@ -300,6 +300,15 @@
       "attrs": {
         "value": "220"
       }
+    },
+    {
+      "type": "wokwi-potentiometer",
+      "id": "tds",
+      "top": 470,
+      "left": -330,
+      "attrs": {
+        "value": "200"
+      }
     }
   ],
   "connections": [
@@ -757,6 +766,24 @@
       "ledVR1:C",
       "esp:GND.2",
       "black",
+      []
+    ],
+    [
+      "tds:VCC",
+      "esp:3V3",
+      "red",
+      []
+    ],
+    [
+      "tds:GND",
+      "esp:GND.1",
+      "black",
+      []
+    ],
+    [
+      "tds:SIG",
+      "esp:VN",
+      "orange",
       []
     ]
   ],
