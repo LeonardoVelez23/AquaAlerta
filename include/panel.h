@@ -1,7 +1,8 @@
 // Panel de red (fase 2): varios aljibes en un mapa. Solo el nodo 1 es real
 // (lee /api/estado de este ESP32); los demás son SIMULADOS y así se rotulan.
 // Sirve para mostrar en el pitch cómo escalaría AquaAlerta en el territorio.
-// Sin librerías externas: funciona sin internet. Abrir en http://<ip>/panel
+// Mapa real (Leaflet + OpenStreetMap) si el navegador tiene internet; sin internet
+// se ve un esquema con las mismas posiciones. Abrir en http://<ip>/panel
 // (o como archivo local con ?esp=192.168.4.1).
 #pragma once
 #include <pgmspace.h>
@@ -12,7 +13,6 @@ const char PANEL[] PROGMEM = R"rawliteral(<!doctype html>
 <title>Red AquaAlerta</title>
 <style>
 :root{--bg:#f2f6f9;--card:#fff;--txt:#17252f;--sub:#5b6b77;--agua:#2f8fd8;--lodo:#a07a4a;--cloro:#8b5cf6;--ok:#1f9d55;--warn:#d69e0b;--bad:#d63c3c;--gris:#8795a1;--borde:#dbe3ea;--mapa:#e8f0e4;--rio:#9cc8ea;--via:#cfd6cc}
-@media (prefers-color-scheme:dark){:root{--bg:#0f1820;--card:#18242e;--txt:#e6eef4;--sub:#93a4b1;--borde:#2a3945;--mapa:#1b2a24;--rio:#24527a;--via:#34443d}}
 *{box-sizing:border-box}body{margin:0;font-family:system-ui,sans-serif;background:var(--bg);color:var(--txt)}
 header{padding:14px 16px;display:flex;justify-content:space-between;align-items:center;gap:10px;max-width:1100px;margin:auto}
 h1{font-size:1.25rem;margin:0}h2{font-size:1rem;margin:0 0 10px}small{color:var(--sub)}
@@ -33,6 +33,14 @@ svg{width:100%;height:auto;display:block;border-radius:10px}
 .sel circle.p{stroke:var(--txt);stroke-width:3}
 @keyframes pulso{0%{r:11;opacity:.7}100%{r:24;opacity:0}}
 .onda{animation:pulso 1.8s ease-out infinite;fill:none;stroke:var(--ok);stroke-width:2}
+#lf{height:340px;border-radius:10px;z-index:0}
+.mk .pin{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;color:#fff;font:700 11px system-ui;border:2px solid #fff;box-shadow:0 1px 4px #0007;cursor:pointer}
+.mk .pin.sel{outline:3px solid #17252f;outline-offset:1px}
+.mk .pin.off{border-style:dashed}
+.mk .pin.vivo{animation:latido 1.8s ease-out infinite}
+@keyframes latido{0%{box-shadow:0 0 0 0 #1f9d55bb}100%{box-shadow:0 0 0 18px #1f9d5500}}
+.mk .lbl.arriba{top:auto;bottom:33px}
+.mk .lbl{position:absolute;top:33px;left:50%;transform:translateX(-50%);white-space:nowrap;font:600 11px system-ui;color:#17252f;background:#fffe;padding:1px 6px;border-radius:4px;box-shadow:0 1px 2px #0003}
 .est{display:inline-block;padding:3px 9px;border-radius:7px;color:#fff;font-weight:600;font-size:.85rem}
 .VERDE{background:var(--ok)}.AMARILLO{background:var(--warn)}.ROJO{background:var(--bad)}.GRIS{background:var(--gris)}
 .vals{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:12px 0}
@@ -46,11 +54,12 @@ tbody tr{cursor:pointer}tbody tr:hover{background:var(--bg)}
 .bar{display:inline-block;width:46px;height:7px;border-radius:4px;background:var(--borde);vertical-align:middle;margin-right:5px;overflow:hidden}
 .bar i{display:block;height:100%}
 </style></head><body>
-<header><div><h1>💧 Red AquaAlerta</h1><small>Aljibes rurales · Calceta, Manabí</small></div>
+<header><div><h1>💧 Red AquaAlerta</h1><small>Aljibes rurales · Bolívar, Manabí</small></div>
 <a href="/" id="lnk">Panel del prototipo ›</a></header>
 <main>
  <div class="card aviso"><b>Demostración de fase 2.</b> Solo el aljibe <span class="tag vivo">EN VIVO</span> es el
-  prototipo real conectado ahora. Los marcados <span class="tag sim">SIMULADO</span> tienen datos de ejemplo
+  prototipo real, conectado ahora en la ESPAM MFL (Carrera de Computación). Los aljibes
+  <span class="tag sim">S1</span> a <span class="tag sim">S5</span> son simulados: sus datos y ubicaciones son de ejemplo,
   para mostrar cómo se vería la red al instalar AquaAlerta en más aljibes.
   <label><input type="checkbox" id="soloReal"> Mostrar solo el aljibe real</label></div>
 
@@ -65,16 +74,12 @@ tbody tr{cursor:pointer}tbody tr:hover{background:var(--bg)}
 
  <div class="dos">
   <div class="card"><h2>Mapa de aljibes</h2>
-   <svg id="mapa" viewBox="0 0 400 260" role="img" aria-label="Mapa esquemático de los aljibes">
+   <div id="lf" hidden></div>
+   <svg id="mapa" viewBox="0 0 400 260" role="img" aria-label="Esquema de los aljibes">
     <rect width="400" height="260" fill="var(--mapa)"/>
-    <path d="M-10 40 C60 60 110 20 170 70 S260 160 330 150 S390 200 410 230" fill="none" stroke="var(--rio)" stroke-width="14" stroke-linecap="round"/>
-    <text x="345" y="185" font-size="10" fill="var(--sub)" font-style="italic">río</text>
-    <path d="M200 130 L120 60 M200 130 L320 90 M200 130 L250 215 M200 130 L60 170 M320 90 L300 30" stroke="var(--via)" stroke-width="4" fill="none"/>
-    <circle cx="200" cy="130" r="30" fill="var(--via)" opacity=".55"/>
-    <text x="200" y="98" text-anchor="middle" font-size="11" fill="var(--sub)" font-weight="600">Calceta</text>
     <g id="nodos"></g>
    </svg>
-   <small>Esquema, no a escala. Toca un aljibe para ver el detalle.</small></div>
+   <small id="nota">Sin internet: esquema con las posiciones aproximadas (norte arriba). Toca un aljibe para ver el detalle.</small></div>
   <div class="card" id="det"></div>
  </div>
 
@@ -86,18 +91,30 @@ tbody tr{cursor:pointer}tbody tr:hover{background:var(--bg)}
 const q=new URLSearchParams(location.search).get('esp');
 const BASE=q?(q.startsWith('http')?q:'http://'+q):'';
 if(BASE)document.getElementById('lnk').href=BASE+'/';
+// Dentro del dashboard (iframe con ?embed=1): sin encabezado propio, avisa su alto
+// al dashboard y el enlace al prototipo abre la vista Resumen del dashboard.
+const EMBED=new URLSearchParams(location.search).has('embed');
+if(EMBED){
+ document.querySelector('header').style.display='none';
+ document.body.style.background='transparent';document.querySelector('main').style.cssText='padding:0;max-width:none';
+ new ResizeObserver(()=>parent.postMessage({aljibesAlto:document.documentElement.scrollHeight},'*')).observe(document.body);
+}
 const $=id=>document.getElementById(id);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const MAXH=180;  // 30 min a un punto cada 10 s, igual que el historial del ESP32
 
-// Nombres y posiciones: cámbienlos por los sitios reales cuando se instalen.
+// Ubicaciones (lat, lon) tomadas de OpenStreetMap. El prototipo está en la ESPAM MFL,
+// Carrera de Computación. S1–S5 son simulados: poblados del cantón como ejemplo.
 const N=[
- {id:1,nom:'Aljibe 1 · Prototipo',sec:'Demostración en la feria',x:200,y:130,real:true},
- {id:2,nom:'Aljibe 2',sec:'Sector norte',x:120,y:60,tipo:'ok'},
- {id:3,nom:'Aljibe 3',sec:'Sector este',x:320,y:90,tipo:'pac'},
- {id:4,nom:'Aljibe 4',sec:'Sector sur',x:250,y:215,tipo:'filtro'},
- {id:5,nom:'Aljibe 5',sec:'Sector oeste',x:60,y:170,tipo:'off'},
- {id:6,nom:'Aljibe 6',sec:'Estero (agua salobre)',x:300,y:30,tipo:'coag'}];
+ {id:1,cod:'★',nom:'Prototipo AquaAlerta',sec:'ESPAM MFL · Carrera de Computación',lat:-0.82664,lon:-80.18225,real:true},
+ {id:2,cod:'S1',nom:'S1 · Calceta',sec:'Ubicación de ejemplo',lat:-0.84809,lon:-80.16404,tipo:'ok'},
+ {id:3,cod:'S2',nom:'S2 · Quiroga',sec:'Ubicación de ejemplo',lat:-0.88391,lon:-80.09610,tipo:'pac'},
+ {id:4,cod:'S3',nom:'S3 · Canuto',sec:'Ubicación de ejemplo',lat:-0.79919,lon:-80.12913,tipo:'filtro'},
+ {id:5,cod:'S4',nom:'S4 · Severino',sec:'Ubicación de ejemplo',lat:-0.96143,lon:-80.03432,tipo:'off'},
+ {id:6,cod:'S5',nom:'S5 · Membrillo',sec:'Ubicación de ejemplo (agua salobre)',lat:-0.84665,lon:-79.92874,tipo:'coag'}];
+// Posición en el esquema sin internet: proyecta lat/lon dentro del recuadro de 400×260.
+(()=>{const la=N.map(n=>n.lat),lo=N.map(n=>n.lon),a0=Math.min(...la),a1=Math.max(...la),o0=Math.min(...lo),o1=Math.max(...lo);
+ N.forEach(n=>{n.x=65+(n.lon-o0)/(o1-o0)*290;n.y=30+(a1-n.lat)/(a1-a0)*190;});})();
 
 // Casos simulados: cada uno muestra una situación distinta que detecta AquaAlerta.
 const BASES={
@@ -137,7 +154,7 @@ function leer(k){try{return localStorage.getItem(k)}catch(e){return null}}
 function escribir(k,v){try{localStorage.setItem(k,v)}catch(e){}}
 let sel=1;
 $('soloReal').checked=leer('soloReal')==='1';
-$('soloReal').onchange=e=>{escribir('soloReal',e.target.checked?'1':'0');if(e.target.checked)sel=1;pintar();};
+$('soloReal').onchange=e=>{escribir('soloReal',e.target.checked?'1':'0');if(e.target.checked)sel=1;pintar();encuadrar();};
 const visibles=()=>N.filter(n=>n.real||!$('soloReal').checked);
 
 function hace(ms){
@@ -154,6 +171,44 @@ const COL={VERDE:'--ok',AMARILLO:'--warn',ROJO:'--bad',GRIS:'--gris'};
 const f=(v,d)=>v==null||isNaN(v)?'–':(+v).toFixed(d);
 const barra=(p,c)=>p==null?'–':`<span class="bar"><i style="width:${lim(p,0,100)}%;background:var(${p<20?'--bad':c})"></i></span>${Math.round(p)}%`;
 const etiqueta=n=>n.real?'<span class="tag vivo">EN VIVO</span>':'<span class="tag sim">SIMULADO</span>';
+
+// Mapa real: Leaflet y los mosaicos de OpenStreetMap se bajan de internet. Si no hay
+// internet (por ejemplo, conectado a la red propia del ESP32) queda el esquema.
+let LF=null;const marcas={};
+function cargarMapa(){
+ if(!navigator.onLine)return;
+ const l=document.createElement('link');l.rel='stylesheet';l.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+ l.integrity='sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=';l.crossOrigin='';document.head.appendChild(l);
+ const s=document.createElement('script');s.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+ s.integrity='sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=';s.crossOrigin='';
+ s.onload=iniciarMapa;document.head.appendChild(s);
+}
+function iniciarMapa(){
+ $('lf').hidden=false;$('mapa').style.display='none';
+ LF=L.map('lf',{scrollWheelZoom:false});
+ L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,
+  attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'}).addTo(LF);
+ $('nota').textContent='Mapa de OpenStreetMap. El prototipo está en la ESPAM MFL; S1–S5 son simulados en ubicaciones de ejemplo. Toca un aljibe para ver el detalle.';
+ encuadrar();pintar();
+}
+function encuadrar(){
+ if(!LF)return;
+ if($('soloReal').checked)LF.setView([N[0].lat,N[0].lon],17);
+ else LF.fitBounds(N.map(n=>[n.lat,n.lon]),{paddingTopLeft:[90,50],paddingBottomRight:[40,40]});
+}
+function pintarLeaflet(vs){
+ N.forEach(n=>{
+  const m=marcas[n.id],ver=vs.includes(n);
+  if(!ver){if(m){m.remove();delete marcas[n.id];}return;}
+  const cls='pin '+color(n)+(n.id===sel?' sel':'')+(n.online?'':' off')+(n.real&&n.online?' vivo':'');
+  const html=`<div class="${cls}">${n.cod}</div><div class="lbl${n.real?' arriba':''}">${n.real?'EN VIVO · ESPAM':esc(n.nom)+' (sim.)'}</div>`;
+  if(m&&m._html===html)return;
+  const ic=L.divIcon({className:'mk',html,iconSize:[30,30],iconAnchor:[15,15]});
+  if(m){m.setIcon(ic);m._html=html;return;}
+  const k=L.marker([n.lat,n.lon],{icon:ic,zIndexOffset:n.real?1000:0}).addTo(LF);
+  k._html=html;k.on('click',()=>{sel=n.id;pintar();});marcas[n.id]=k;
+ });
+}
 
 async function leerReal(){
  const n=N[0];
@@ -184,7 +239,7 @@ function pintar(){
  $('kP').textContent=Math.floor(L/20).toLocaleString('es');
  const rep=vs.filter(n=>n.s&&(n.s.pac<20||n.s.cloro<20));
  $('kI').textContent=rep.length;
- $('kIt').textContent=rep.map(n=>'#'+n.id+(n.s.pac<20?' PAC':'')+(n.s.cloro<20?' cloro':'')).join(', ');
+ $('kIt').textContent=rep.map(n=>n.cod+(n.s.pac<20?' PAC':'')+(n.s.cloro<20?' cloro':'')).join(', ');
 
  let g='';
  vs.forEach(n=>{
@@ -192,10 +247,11 @@ function pintar(){
   g+=`<g class="nodo${n.id===sel?' sel':''}" data-id="${n.id}">`+
      (n.real&&n.online?`<circle class="onda" cx="${n.x}" cy="${n.y}" r="11"/>`:'')+
      `<circle class="p" cx="${n.x}" cy="${n.y}" r="11" fill="${c}"${n.online?'':' stroke-dasharray="3 2" stroke="var(--sub)" stroke-width="2"'}/>`+
-     `<text x="${n.x}" y="${n.y+4}" text-anchor="middle">${n.id}</text>`+
-     `<text class="nom" x="${n.x}" y="${n.y+25}" text-anchor="middle">${n.real?'EN VIVO':'simulado'}</text></g>`;
+     `<text x="${n.x}" y="${n.y+4}" text-anchor="middle">${n.cod}</text>`+
+     `<text class="nom" x="${n.x}" y="${n.real?n.y-17:n.y+25}" text-anchor="middle">${n.real?'EN VIVO · ESPAM':esc(n.nom.split(' · ')[1])}</text></g>`;
  });
  $('nodos').innerHTML=g;
+ if(LF)pintarLeaflet(vs);
 
  $('filas').innerHTML=vs.map(n=>{const s=n.s||{};return `<tr data-id="${n.id}"><td><b>${esc(n.nom)}</b> ${etiqueta(n)}<br><small>${esc(n.sec)}</small></td>`+
   `<td><span class="est ${color(n)}">${esc(causa(n))}</span></td><td>${f(s.ntu1,0)} NTU</td><td>${f(s.tds,0)} ppm</td><td>${f(s.ph,1)}</td><td>${f(s.ntu2,1)} NTU</td>`+
@@ -217,7 +273,7 @@ function detalle(){
   `<div class="graf"><div><span>Turbidez R1 · 30 min</span><canvas id="g1"></canvas></div>`+
   `<div><span>Turbidez R2 · 30 min</span><canvas id="g2"></canvas></div>`+
   `<div><span>pH · 30 min</span><canvas id="g3"></canvas></div><div><span>Nivel R2 · 30 min</span><canvas id="g4"></canvas></div></div>`+
-  (n.real?`<p><a href="${BASE}/">Abrir el panel completo del prototipo ›</a></p>`:
+  (n.real?`<p><a href="${BASE}/" target="_top" onclick="if(EMBED){parent.location.hash='resumen';return false}">Abrir el panel completo del prototipo ›</a></p>`:
           `<p><small>Datos de ejemplo: este aljibe todavía no existe.</small></p>`);
  const h=n.h;
  linea($('g1'),h.map(p=>p.ntu1),css('--lodo'));
@@ -247,5 +303,5 @@ async function tick(){
  N.forEach(n=>{if(!n.real&&n.online){paso(n.s,n.tipo);n.visto=Date.now();if(ciclo%5===0)guardar(n);}});
  ciclo++;pintar();
 }
-tick();setInterval(tick,2000);
+cargarMapa();tick();setInterval(tick,2000);
 </script></body></html>)rawliteral";

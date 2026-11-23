@@ -14,6 +14,16 @@
 #include "pagina.h"
 #include "panel.h"
 #include "secrets.h"
+#ifndef THINGSPEAK_WRITE_KEY
+#define THINGSPEAK_WRITE_KEY ""  // agregar la clave en secrets.h (ver secrets.example.h)
+#endif
+#ifndef THINGSPEAK_CHANNEL_ID
+#define THINGSPEAK_CHANNEL_ID 0
+#endif
+#ifndef THINGSPEAK_READ_KEY
+#define THINGSPEAK_READ_KEY ""
+#endif
+#include "nube.h"
 
 LiquidCrystal_I2C lcd(LCD_ADDR, 16, 2);
 WebServer server(80);
@@ -378,9 +388,14 @@ void apiEstado() {
       TDS_MAX_PPM, tf(TDS_BLOQUEA));
   j.remove(j.length() - 1);  // quita la última } para agregar las medidas de los recipientes
   add(",\"geom\":{\"r1\":{\"vacio\":%.1f,\"lleno\":%.1f,\"litros\":%.1f,\"dist\":%.1f},"
-      "\"r2\":{\"vacio\":%.1f,\"lleno\":%.1f,\"litros\":%.1f,\"dist\":%.1f}}}",
+      "\"r2\":{\"vacio\":%.1f,\"lleno\":%.1f,\"litros\":%.1f,\"dist\":%.1f}},",
       tanqueR1.vacioCm, tanqueR1.llenoCm, tanqueR1.litros, isnan(m.distR1) ? -1 : m.distR1, tanqueR2.vacioCm,
       tanqueR2.llenoCm, tanqueR2.litros, isnan(m.distancia) ? -1 : m.distancia);
+  // Envío a ThingSpeak: hace_s = segundos desde el último envío aceptado (-1: ninguno).
+  add("\"nube\":{\"activa\":%s,\"internet\":%s,\"envios\":%lu,\"errores\":%lu,\"hace_s\":%ld,\"codigo\":%d,\"canal\":%lu,\"lectura\":\"%s\"}}",
+      tf(nube::estado.activa), tf(!modoAP && WiFi.status() == WL_CONNECTED), nube::estado.envios,
+      nube::estado.errores, nube::estado.ultimoOk ? (long)((ahora - nube::estado.ultimoOk) / 1000) : -1L,
+      nube::estado.ultimoCodigo, (unsigned long)THINGSPEAK_CHANNEL_ID, THINGSPEAK_READ_KEY);
   server.sendHeader("Access-Control-Allow-Origin", "*");  // panel abierto como archivo local
   server.send(200, "application/json", j);
 }
@@ -546,6 +561,7 @@ void setup() {
   cargarRespaldo(millis());
 
   iniciarRed();
+  nube::iniciar(THINGSPEAK_WRITE_KEY);
   iniciarWatchdog();
 }
 
@@ -642,6 +658,10 @@ void loop() {
   if (ahora - tHistorial >= INTERVALO_HISTORIAL_MS || tHistorial == 0) {
     tHistorial = ahora;
     guardarHistorial();
+    nube::Muestra s = {m.ntuR1, m.ntuR2, m.ph, m.tds, m.r2Ok ? m.nivel : NAN, transfer.litrosBombeados,
+                       coag.pctRestante(), (int)diag.alerta, coag.lotes, {}};
+    strlcpy(s.causa, diag.causa, sizeof s.causa);
+    nube::publicar(s);
     Serial.printf("{\"ntu_r1\":%.0f,\"r1_agua\":%d,\"r1\":%.1f,\"coag\":\"%s\",\"rpm\":%d,\"valvula\":%d,"
                   "\"tds\":%.0f,\"r2\":%.1f,\"ph\":%.2f,\"ntu_r2\":%.1f,\"purga\":%d,\"transfer\":%d,\"goteo\":%d,"
                   "\"estado\":\"%s\"}\n",

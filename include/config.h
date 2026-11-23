@@ -208,6 +208,8 @@ constexpr unsigned long INTERVALO_HISTORIAL_MS = 10000;  // un punto cada 10 s
 constexpr int           HISTORIAL_PUNTOS     = 180;      // 30 min
 constexpr unsigned long WIFI_ESPERA_MS       = 10000;    // luego crea su propia red
 constexpr uint32_t      WATCHDOG_MS          = 20000;
+// ThingSpeak (cuenta gratis): como máximo un envío cada 15 s. Ver include/nube.h.
+constexpr unsigned long THINGSPEAK_INTERVALO_MS = DEMO_O_REAL(20UL, 60UL) * 1000UL;
 // Respaldo en flash (NVS): insumos, litros por clorar y estado de los lotes
 // sobreviven a un corte de luz. Los contadores se guardan como máximo cada
 // minuto; los cambios de etapa, al momento.
