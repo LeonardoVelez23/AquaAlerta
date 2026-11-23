@@ -207,7 +207,7 @@ async function estado(){
   $('cPend').textContent=Math.round(C.pendientes_l)+' L';
   $('cPendT').textContent=C.pendientes_l>0&&r2.gotas_l>0?'≈ '+Math.round(C.pendientes_l*r2.gotas_l)+' gotas':'';
   $('cDosis').textContent=C.dosis?Math.round(C.objetivo)+' gotas':'–';
-  $('cDosisT').textContent=C.dosis?'pH '+C.ph_dosis.toFixed(1)+' · '+C.gotas_l_usadas+' gotas/L · ≈ '+(C.objetivo/C.gotas_ml).toFixed(1)+' ml':'';
+  $('cDosisT').textContent=C.dosis?'pH '+C.ph_dosis.toFixed(1)+' · '+C.gotas_l_usadas+(C.gotas_l_usadas==1?' gota/L':' gotas/L')+' · ≈ '+(C.objetivo/C.gotas_ml).toFixed(1)+' ml':'';
   $('cRest').textContent=Math.round(C.ml_restantes)+' ml';$('cRestT').textContent=Math.round(C.pct_restante)+' % de la botella';
   if(!tabla){tabla=true;
    const g='sí, '+k.gotas_l+' gota/L';
