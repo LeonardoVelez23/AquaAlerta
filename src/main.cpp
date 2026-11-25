@@ -66,6 +66,44 @@ int histInicio = 0, histCantidad = 0;
 unsigned long tLectura = 0, tPantalla = 0, tHistorial = 0, silencioHasta = 0;
 int pantalla = 0;
 
+// ---------- Arduino UNO (solo con USAR_UNO=1) ----------
+// Recibe "N,<cm R1>,<cm R2>,<etapa>" sin bloquear el programa.
+struct {
+  float cmR1 = NAN, cmR2 = NAN;
+  int etapa = 0;
+  unsigned long tUltimo = 0, mensajes = 0, errores = 0;
+  bool vivo(unsigned long ahora) const { return tUltimo && ahora - tUltimo < UNO_SILENCIO_MS; }
+} uno;
+char unoBuf[40];
+int unoLen = 0;
+
+float cmValida(float cm) { return (cm < DIST_MIN_VALIDA_CM || cm > DIST_MAX_VALIDA_CM) ? NAN : cm; }
+
+void leerUno() {
+  if (!CON_UNO) return;
+  while (Serial2.available()) {
+    char c = Serial2.read();
+    if (c == '\r') continue;
+    if (c != '\n') {
+      if (unoLen < (int)sizeof unoBuf - 1) unoBuf[unoLen++] = c;
+      continue;
+    }
+    unoBuf[unoLen] = 0;
+    unoLen = 0;
+    float a, b;
+    int e;
+    if (sscanf(unoBuf, "N,%f,%f,%d", &a, &b, &e) == 3 && e >= 0 && e <= 3) {
+      uno.cmR1 = a < 0 ? NAN : cmValida(a);  // el UNO manda -1 si su sensor no responde
+      uno.cmR2 = b < 0 ? NAN : cmValida(b);
+      uno.etapa = e;
+      uno.tUltimo = millis();
+      uno.mensajes++;
+    } else {
+      uno.errores++;
+    }
+  }
+}
+
 // ---------- Sensores ----------
 float pingCm(int trig, int echo) {
   digitalWrite(trig, LOW);
@@ -112,7 +150,8 @@ void leerSensores() {
   m.ntuR1 = mNtu.agregar(ntuDesdeVoltaje(voltios(PIN_TURB_R1, TURB_DIVISOR)));
   m.r1Agua = digitalRead(PIN_FLOTADOR_R1) == LOW;
   m.tds = mTds.agregar(tdsDesdeVoltaje(voltios(PIN_TDS_R1, 1.0f)));
-  float d1 = distanciaMediana(PIN_TRIG_R1, PIN_ECHO_R1);
+  bool unoVivo = uno.vivo(millis());
+  float d1 = CON_UNO ? (unoVivo ? uno.cmR1 : NAN) : distanciaMediana(PIN_TRIG_R1, PIN_ECHO_R1);
   if (isnan(d1)) {
     if (++fallosNivelR1 == FALLOS_NIVEL_ALERTA) Serial.println("R1: sensor de nivel sin respuesta");
   } else {
@@ -121,8 +160,10 @@ void leerSensores() {
     m.nivelR1 = mNivel1.agregar(nivelR1DesdeDistancia(d1));
   }
   m.r1NivelOk = fallosNivelR1 < FALLOS_NIVEL_ALERTA;
+  // Con el UNO no hay flotador: R1 "tiene agua" si su nivel pasa del mínimo.
+  if (CON_UNO) m.r1Agua = m.r1NivelOk && m.nivelR1 >= UNO_R1_MIN_PCT;
 
-  float d = distanciaMediana(PIN_TRIG_R2, PIN_ECHO_R2);
+  float d = CON_UNO ? (unoVivo ? uno.cmR2 : NAN) : distanciaMediana(PIN_TRIG_R2, PIN_ECHO_R2);
   if (isnan(d)) {
     if (++fallosNivel == FALLOS_NIVEL_ALERTA) Serial.println("R2: sensor de nivel sin respuesta");
   } else {
@@ -392,6 +433,8 @@ void apiEstado() {
       tanqueR1.vacioCm, tanqueR1.llenoCm, tanqueR1.litros, isnan(m.distR1) ? -1 : m.distR1, tanqueR2.vacioCm,
       tanqueR2.llenoCm, tanqueR2.litros, isnan(m.distancia) ? -1 : m.distancia);
   // Envío a ThingSpeak: hace_s = segundos desde el último envío aceptado (-1: ninguno).
+  add("\"uno\":{\"usado\":%s,\"vivo\":%s,\"etapa\":%d,\"mensajes\":%lu,\"errores\":%lu},", tf(CON_UNO),
+      tf(uno.vivo(ahora)), uno.etapa, uno.mensajes, uno.errores);
   add("\"nube\":{\"activa\":%s,\"internet\":%s,\"envios\":%lu,\"errores\":%lu,\"hace_s\":%ld,\"codigo\":%d,\"canal\":%lu,\"lectura\":\"%s\"}}",
       tf(nube::estado.activa), tf(!modoAP && WiFi.status() == WL_CONNECTED), nube::estado.envios,
       nube::estado.errores, nube::estado.ultimoOk ? (long)((ahora - nube::estado.ultimoOk) / 1000) : -1L,
@@ -534,10 +577,14 @@ void setup() {
   }
   ledcAttach(PIN_AGITADOR, AGIT_PWM_FREQ, AGIT_PWM_BITS);
   aplicarAgitador(0);
-  pinMode(PIN_TRIG_R1, OUTPUT);
-  pinMode(PIN_ECHO_R1, INPUT);
-  pinMode(PIN_TRIG_R2, OUTPUT);
-  pinMode(PIN_ECHO_R2, INPUT);
+  if (CON_UNO) {
+    Serial2.begin(UNO_BAUDIOS, SERIAL_8N1, PIN_UNO_RX, -1);  // solo recibe del UNO
+  } else {
+    pinMode(PIN_TRIG_R1, OUTPUT);
+    pinMode(PIN_ECHO_R1, INPUT);
+    pinMode(PIN_TRIG_R2, OUTPUT);
+    pinMode(PIN_ECHO_R2, INPUT);
+  }
   pinMode(PIN_FLOTADOR_R1, INPUT_PULLUP);
   pinMode(PIN_BOTON, INPUT_PULLUP);
   pinMode(PIN_LED_VERDE, OUTPUT);
@@ -554,7 +601,8 @@ void setup() {
   lcd.print("AquaAlerta ODS6");
   lcd.setCursor(0, 1);
   lcd.print("Conectando...");
-  Serial.printf("AquaAlerta iniciada (modo %s)\n", MODO_DEMO ? "DEMO: tiempos cortos" : "REAL");
+  Serial.printf("AquaAlerta iniciada (modo %s%s)\n", MODO_DEMO ? "DEMO: tiempos cortos" : "REAL",
+                CON_UNO ? ", con Arduino UNO" : "");
   if (clavesPorDefecto()) Serial.println("AVISO: PIN_WEB o AP_PASSWORD de fabrica, cambiarlos en secrets.h");
   prefs.begin("aqua", false);
   cargarGeometria();
@@ -568,6 +616,7 @@ void setup() {
 void loop() {
   esp_task_wdt_reset();
   server.handleClient();
+  leerUno();
   unsigned long ahora = millis();
   manejarBoton(ahora);
 
@@ -588,7 +637,15 @@ void loop() {
     bool r1Ocupado = purga.encendida || purga.estado != EstadoPurga::LIMPIO || transfer.encendida ||
                      valvula.abierta;
     bool salobre = TDS_BLOQUEA && aguaSalobre(m.tds);  // lectura actual: agua aún sin PAC
-    coag.actualizar(m.ntuR1, m.nivelR1, m.r1NivelOk, m.r1Agua, r1Ocupado || salobre, transfer.encendida, t);
+    if (CON_UNO) {
+      // El UNO llena y bate; el ESP32 echa el PAC. Mientras se transfiere R1 no se cambia de etapa.
+      if (uno.vivo(t) && !transfer.encendida) coag.desdeUno(uno.etapa, m.ntuR1, m.nivelR1, m.r1NivelOk, salobre, t);
+      else if (coag.bombaPac) { coag.bombaPac = false; }  // UNO sin respuesta: no dosificar a ciegas
+    } else {
+      coag.actualizar(m.ntuR1, m.nivelR1, m.r1NivelOk, m.r1Agua, r1Ocupado || salobre, transfer.encendida, t);
+    }
+    if (CON_UNO && coAntes != EstadoCoag::DOSIFICANDO && coag.estado == EstadoCoag::DOSIFICANDO && m.r1Agua)
+      m.tdsFuente = m.tds;  // agua cruda del lote, justo antes del PAC
     if (coAntes == EstadoCoag::MIDIENDO && coag.estado != EstadoCoag::MIDIENDO && m.r1Agua) {
       m.tdsFuente = m.tds;  // agua cruda del lote, antes del PAC
       Serial.printf("TDS: agua del lote %.0f ppm (%s)\n", m.tdsFuente,
@@ -596,9 +653,9 @@ void loop() {
       if (TDS_BLOQUEA && aguaSalobre(m.tdsFuente)) coag.cancelar();
     }
     aplicarRele(PIN_RELE_PAC, coag.bombaPac);
-    aplicarAgitador(coag.rpm);
+    aplicarAgitador(CON_UNO ? 0 : coag.rpm);  // con UNO, el motor es suyo
     if (coag.estado != coAntes) {
-      Serial.printf("Coagulacion: %s", textoCoag(coag.estado));
+      Serial.printf("Coagulacion: %s%s", textoCoag(coag.estado), CON_UNO ? " (UNO)" : "");
       if (coag.estado == EstadoCoag::DOSIFICANDO)
         Serial.printf(" -> %.0f NTU, %.0f ppm x %.0f L = %.0f ml de PAC", coag.ntuMedida, coag.ppm,
                       coag.litrosLote, coag.mlObjetivo);
@@ -608,7 +665,8 @@ void loop() {
     // 0b) Válvula de entrada: deja entrar agua cruda solo con R1 en reposo
     bool vAntes = valvula.abierta;
     bool r2EsperaAgua = coag.lista() && m.r2Ok && m.nivel <= R2_ENCENDER;
-    if (valvula.actualizar(m.nivelR1, m.r1NivelOk, coag.ocupado() || purga.encendida ||
+    if (!CON_UNO &&  // con UNO, él maneja la bomba de entrada a R1
+        valvula.actualizar(m.nivelR1, m.r1NivelOk, coag.ocupado() || purga.encendida ||
                            purga.estado != EstadoPurga::LIMPIO || transfer.encendida, r2EsperaAgua, t)) {
       coag.iniciar();  // entró agua cruda: R1 se vuelve a tratar
     }

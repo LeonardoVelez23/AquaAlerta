@@ -192,6 +192,53 @@ class Coagulacion {
     if (!ocupado()) { pendiente_ = true; estado = EstadoCoag::ESPERA; }
   }
   bool pendiente() const { return pendiente_; }
+  // Modo UNO: el Arduino UNO llena R1 y bate; el ESP32 dosifica el PAC (turbidez × litros)
+  // mientras el UNO bate, y después deja sedimentar.
+  // etapa del UNO: 0 espera, 1 llenando, 2 batiendo, 3 terminó de batir.
+  // bloqueado: agua salobre (no dosifica).
+  void desdeUno(int etapa, float ntu, float nivel, bool nivelOk, bool bloqueado, unsigned long ahora) {
+    externo_ = true;
+    if (bombaPac) {
+      float ml = (ahora - tUltimo_) / 60000.0f * PAC_CAUDAL_ML_MIN;
+      mlAplicados += ml;
+      mlTotal += ml;
+    }
+    tUltimo_ = ahora;
+    if (etapa <= 1) {  // R1 esperando o llenándose: lote nuevo
+      if (estado == EstadoCoag::DOSIFICANDO) mlPrevios_ += mlLote();
+      if (estado != EstadoCoag::ESPERA && estado != EstadoCoag::SIN_PAC) cambiar(EstadoCoag::ESPERA, ahora);
+      mlAplicados = 0;
+      pendiente_ = true;
+    } else {
+      switch (estado) {
+        case EstadoCoag::ESPERA:  // R1 lleno: mide y calcula la dosis
+          if (!pendiente_ || bloqueado) break;
+          calcularDosis(ntu, nivel, nivelOk, ahora);
+          if (estado == EstadoCoag::LISTA) {  // agua clara o sin nivel: no echa PAC
+            pendiente_ = true;
+            cambiar(EstadoCoag::COAGULANDO, ahora);
+          }
+          break;
+        case EstadoCoag::DOSIFICANDO:
+          if (mlAplicados >= mlObjetivo) cambiar(EstadoCoag::COAGULANDO, ahora);
+          else if (mlRestantes() <= 0) estado = EstadoCoag::SIN_PAC;
+          break;
+        case EstadoCoag::COAGULANDO:  // el UNO sigue batiendo
+          if (etapa == 3) {
+            if (sinPac || sinNivel) terminarLote(nivel, nivelOk);
+            else cambiar(EstadoCoag::SEDIMENTANDO, ahora);
+          }
+          break;
+        case EstadoCoag::SEDIMENTANDO:
+          if (ahora - desde_ >= COAG_SEDIM_MS) { lotes++; terminarLote(nivel, nivelOk); }
+          break;
+        default:
+          break;
+      }
+    }
+    bombaPac = estado == EstadoCoag::DOSIFICANDO;
+    rpm = etapa == 2 ? AGIT_RPM_RAPIDA : 0;  // solo informativo: el motor es del UNO
+  }
   // R1 se está tratando: no purgar ni transferir.
   bool ocupado() const {
     return estado == EstadoCoag::MIDIENDO || estado == EstadoCoag::DOSIFICANDO ||
@@ -225,6 +272,7 @@ class Coagulacion {
   }
   unsigned long faltaMs(unsigned long ahora) const {
     unsigned long d = ahora - desde_, total;
+    if (externo_ && estado != EstadoCoag::SEDIMENTANDO) return 0;  // el UNO lleva sus tiempos
     switch (estado) {
       case EstadoCoag::MIDIENDO:     total = COAG_MEDIR_MS; break;
       case EstadoCoag::COAGULANDO:   total = COAG_RAPIDA_MS; break;
@@ -301,6 +349,7 @@ class Coagulacion {
  private:
   bool pendiente_ = true;  // al encender no se sabe si R1 está tratada
   bool hayBase_ = false;
+  bool externo_ = false;   // las etapas las decide el Arduino UNO
   float base_ = 0, mlRecarga_ = 0;
   float mlPrevios_ = 0;  // PAC echado en un intento anterior del mismo lote
 

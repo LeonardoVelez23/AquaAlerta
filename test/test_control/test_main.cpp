@@ -270,6 +270,42 @@ void test_transfer_corte_seguridad() {
   TEST_ASSERT_FALSE(b.actualizar({NIVEL_SEGURIDAD, true, true, "", false, 2000}));
 }
 
+// Modo UNO: el UNO llena y bate; el ESP32 echa el PAC mientras bate y luego sedimenta.
+void test_coag_desde_uno() {
+  Coagulacion c;
+  unsigned long t = 1000;
+  c.desdeUno(1, 300, 20, true, false, t);  // llenando
+  TEST_ASSERT_TRUE(c.estado == EstadoCoag::ESPERA);
+  TEST_ASSERT_FALSE(c.bombaPac);
+  c.desdeUno(2, 300, 20, true, false, t += 1000);  // lleno, batiendo: calcula y dosifica
+  TEST_ASSERT_TRUE(c.estado == EstadoCoag::DOSIFICANDO);
+  TEST_ASSERT_TRUE(c.bombaPac);
+  TEST_ASSERT_FLOAT_WITHIN(1, 2000, c.mlObjetivo);  // turbidez × litros, como sin UNO
+  c.desdeUno(2, 300, 20, true, false, t += 2UL * 60000UL);  // 2 L a 1 L/min
+  TEST_ASSERT_TRUE(c.estado == EstadoCoag::COAGULANDO);
+  TEST_ASSERT_FALSE(c.bombaPac);
+  TEST_ASSERT_FLOAT_WITHIN(1, 2000, c.mlAplicados);
+  c.desdeUno(3, 300, 20, true, false, t += 1000);  // terminó de batir: sedimenta
+  TEST_ASSERT_TRUE(c.estado == EstadoCoag::SEDIMENTANDO);
+  TEST_ASSERT_FALSE(c.lista());
+  c.desdeUno(3, 300, 20, true, false, t + COAG_SEDIM_MS);
+  TEST_ASSERT_TRUE(c.lista());
+  TEST_ASSERT_EQUAL(1, (int)c.lotes);
+  c.desdeUno(3, 300, 20, true, false, t + COAG_SEDIM_MS + 5000);  // no repite el lote
+  TEST_ASSERT_TRUE(c.lista());
+  c.desdeUno(1, 300, 20, true, false, t + COAG_SEDIM_MS + 9000);  // R1 se llena otra vez
+  TEST_ASSERT_FALSE(c.lista());
+}
+
+// Modo UNO con agua salobre: no echa PAC.
+void test_coag_desde_uno_salobre() {
+  Coagulacion c;
+  c.desdeUno(1, 300, 20, true, true, 1000);
+  c.desdeUno(2, 300, 20, true, true, 2000);
+  TEST_ASSERT_TRUE(c.estado == EstadoCoag::ESPERA);
+  TEST_ASSERT_FALSE(c.bombaPac);
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_pac_tabla);
@@ -293,5 +329,7 @@ int main() {
   RUN_TEST(test_cloro_corte_en_contacto);
   RUN_TEST(test_cloro_corte_llenando);
   RUN_TEST(test_transfer_corte_seguridad);
+  RUN_TEST(test_coag_desde_uno);
+  RUN_TEST(test_coag_desde_uno_salobre);
   return UNITY_END();
 }

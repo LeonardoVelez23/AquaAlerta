@@ -41,6 +41,22 @@ constexpr int PIN_TDS_R1    = 39;  // sensor TDS (sales disueltas) en R1 (ADC1, 
 constexpr int LCD_ADDR      = 0x27;
 constexpr bool RELE_ACTIVO_ALTO = true;  // muchos módulos físicos son activo-bajo
 
+// ---------- Arduino UNO (opcional) ----------
+// USAR_UNO=1 (entorno esp32dev_uno): el UNO llena R1 y bate con su propio programa,
+// mide el nivel de R1 y R2, y cada ~0,5 s manda por serie la línea
+//   N,<cm R1>,<cm R2>,<etapa>      etapa: 0 espera, 1 llenando, 2 batiendo, 3 terminó de batir
+// El ESP32 echa el PAC (turbidez × litros) mientras el UNO bate, deja sedimentar, purga,
+// pasa el agua al filtro (solo con R1 clara y R2 sin llenar) y clora R2.
+// Sus ultrasonidos, flotador, válvula de entrada y agitador no se usan.
+#ifndef USAR_UNO
+#define USAR_UNO 0
+#endif
+constexpr bool CON_UNO = USAR_UNO;
+constexpr int PIN_UNO_RX = 16;                    // ← TX del UNO (D7) con divisor 1 kΩ / 2 kΩ
+constexpr unsigned long UNO_BAUDIOS = 9600;
+constexpr unsigned long UNO_SILENCIO_MS = 5000;   // sin mensajes: nivel "sin respuesta"
+constexpr float UNO_R1_MIN_PCT = 10.0f;           // R1 con agua (reemplaza al flotador)
+
 // ---------- Recipientes ----------
 // Valores DE FÁBRICA. Se cambian sin recompilar desde la página («Recipientes»):
 // a mano o con «Está vacío ahora» / «Está lleno ahora», y quedan guardados en

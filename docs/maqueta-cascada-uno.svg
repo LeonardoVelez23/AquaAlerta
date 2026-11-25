@@ -1,0 +1,297 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1080" width="1600" height="1080" font-family="Liberation Sans, Arial, Helvetica, sans-serif">
+  <defs>
+    <clipPath id="cR1"><rect x="380" y="180" width="200" height="230" rx="18"/></clipPath>
+    <clipPath id="cR2"><rect x="880" y="670" width="200" height="230" rx="18"/></clipPath>
+    <pattern id="grava" width="16" height="12" patternUnits="userSpaceOnUse">
+      <rect width="16" height="12" fill="#a49b8c"/><circle cx="4" cy="4" r="3.2" fill="#7d7466"/><circle cx="12" cy="9" r="3.5" fill="#8d8475"/>
+    </pattern>
+    <pattern id="gravilla" width="8" height="8" patternUnits="userSpaceOnUse">
+      <rect width="8" height="8" fill="#c9c1b2"/><circle cx="2" cy="2" r="1.4" fill="#9e9586"/><circle cx="6" cy="6" r="1.6" fill="#a99f90"/>
+    </pattern>
+    <pattern id="arena" width="6" height="6" patternUnits="userSpaceOnUse">
+      <rect width="6" height="6" fill="#ecdba8"/><circle cx="1.5" cy="2" r=".8" fill="#cfb878"/><circle cx="4.5" cy="4.5" r=".7" fill="#d6c085"/>
+    </pattern>
+    <marker id="flecha" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#5b6b77"/>
+    </marker>
+    <style>
+      .tit{font-size:30px;font-weight:700;fill:#17252f}
+      .sub{font-size:16px;fill:#5b6b77}
+      .etapa{font-size:17px;font-weight:700;fill:#17252f}
+      .nota{font-size:13px;fill:#5b6b77}
+      .num circle{fill:#1d3a4f}
+      .num.uno circle{fill:#0f8a7e}
+      .num.off circle{fill:#9aa7b1}
+      .num text{font-size:13px;font-weight:700;fill:#fff;text-anchor:middle}
+      .vidrio{fill:#eef6fb;stroke:#7a96a8;stroke-width:3}
+      .tapa{fill:#5b6b77}
+      .mueble{fill:#b98b5a;stroke:#8a6239;stroke-width:2}
+      .pata{stroke:#8a6239;stroke-width:6;stroke-linecap:round}
+      .cruda{fill:none;stroke:#9c6b30;stroke-width:7;stroke-linecap:round;stroke-linejoin:round}
+      .clara{fill:none;stroke:#6aa5c9;stroke-width:7;stroke-linecap:round;stroke-linejoin:round}
+      .filtrada{fill:none;stroke:#2f8fd8;stroke-width:7;stroke-linecap:round;stroke-linejoin:round}
+      .lodo{fill:none;stroke:#6b4a2b;stroke-width:7;stroke-linecap:round;stroke-linejoin:round}
+      .pac{fill:none;stroke:#e07b00;stroke-width:3.5;stroke-linecap:round}
+      .cloro{fill:none;stroke:#8b5cf6;stroke-width:3.5;stroke-linecap:round}
+      .cable{fill:none;stroke:#17252f;stroke-width:2}
+      .lst{font-size:14px;fill:#17252f}
+      .gpio{font-size:13px;fill:#5b6b77;font-weight:700}
+      .panel{fill:#fff;stroke:#dbe3ea;stroke-width:2}
+    </style>
+  </defs>
+
+  <rect width="1600" height="1080" fill="#f6f9fb"/>
+
+  <!-- Título -->
+  <text x="40" y="52" class="tit">AquaAlerta · Maqueta en cascada con Arduino UNO + ESP32</text>
+  <text x="40" y="80" class="sub">El UNO llena R1 y bate; el ESP32 mide la turbidez, echa el PAC mientras se bate, deja sedimentar, purga, pasa el agua al filtro (solo si R2 no está lleno) y clora R2.</text>
+
+  <!-- Piso y fuente -->
+  <line x1="20" y1="950" x2="1160" y2="950" stroke="#c7d2db" stroke-width="3"/>
+  <ellipse cx="200" cy="992" rx="165" ry="36" fill="#9cc8ea" stroke="#5f9cc8" stroke-width="3"/>
+  <ellipse cx="140" cy="998" rx="40" ry="9" fill="#a8875a" opacity=".55"/>
+  <ellipse cx="270" cy="985" rx="30" ry="7" fill="#a8875a" opacity=".55"/>
+  <text x="200" y="1058" class="etapa" text-anchor="middle">Fuente: río · estero · vertiente</text>
+  <!-- bomba sumergible -->
+  <rect x="186" y="968" width="28" height="30" rx="6" fill="#3c4a55"/>
+  <g class="num uno"><circle cx="234" cy="958" r="13"/><text x="234" y="963">1</text></g>
+
+  <!-- 1. Entrada de agua cruda -->
+  <path class="cruda" d="M200 968 V100 H415 V160"/>
+
+  <!-- ===== R1 ===== -->
+  <text x="292" y="150" class="etapa" text-anchor="middle">R1 · Coagulación</text>
+  <text x="292" y="170" class="etapa" text-anchor="middle">y sedimentación</text>
+  <!-- repisa alta -->
+  <rect x="250" y="410" width="390" height="14" class="mueble"/>
+  <line x1="262" y1="424" x2="262" y2="948" class="pata"/>
+  <line x1="628" y1="424" x2="628" y2="948" class="pata"/>
+  <!-- frasco -->
+  <rect x="380" y="180" width="200" height="230" rx="18" class="vidrio"/>
+  <g clip-path="url(#cR1)">
+    <rect x="380" y="225" width="200" height="185" fill="#c9a66b" opacity=".55"/>
+    <rect x="380" y="392" width="200" height="18" fill="#6b4a2b" opacity=".85"/>
+    <g fill="#8a6239" opacity=".7">
+      <circle cx="420" cy="300" r="3"/><circle cx="455" cy="330" r="2.5"/><circle cx="520" cy="310" r="3"/>
+      <circle cx="545" cy="355" r="2.5"/><circle cx="430" cy="365" r="3"/><circle cx="500" cy="372" r="2.5"/>
+    </g>
+  </g>
+  <rect x="380" y="180" width="200" height="230" rx="18" fill="none" stroke="#7a96a8" stroke-width="3"/>
+  <rect x="400" y="160" width="160" height="22" rx="4" class="tapa"/>
+  <!-- HC-SR04 R1 -->
+  <rect x="510" y="144" width="42" height="16" rx="2" fill="#1f6fb2"/>
+  <circle cx="521" cy="152" r="5" fill="#cfd8df"/><circle cx="541" cy="152" r="5" fill="#cfd8df"/>
+  <g class="num uno"><circle cx="572" cy="132" r="13"/><text x="572" y="137">2</text></g>
+  <!-- agitador -->
+  <rect x="465" y="124" width="30" height="36" rx="4" fill="#3c4a55"/>
+  <line x1="480" y1="182" x2="480" y2="340" stroke="#3c4a55" stroke-width="5"/>
+  <rect x="448" y="336" width="64" height="12" rx="3" fill="#3c4a55"/>
+  <path d="M440 316 a40 14 0 0 0 80 0" fill="none" stroke="#3c4a55" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#flecha)"/>
+  <g class="num uno"><circle cx="480" cy="110" r="13"/><text x="480" y="115">3</text></g>
+  <!-- PAC: bidón + bomba peristáltica -->
+  <rect x="280" y="318" width="58" height="92" rx="8" fill="#fff3e0" stroke="#e07b00" stroke-width="3"/>
+  <rect x="296" y="306" width="26" height="14" rx="3" fill="#e07b00"/>
+  <text x="309" y="372" font-size="15" font-weight="700" fill="#e07b00" text-anchor="middle">PAC</text>
+  <circle cx="309" cy="262" r="17" fill="#fff" stroke="#e07b00" stroke-width="3"/>
+  <circle cx="309" cy="262" r="6" fill="#e07b00"/>
+  <path class="pac" d="M309 306 V279"/>
+  <path class="pac" d="M323 252 C360 220 420 210 440 182"/>
+  <g class="num"><circle cx="276" cy="244" r="13"/><text x="276" y="249">4</text></g>
+  <!-- turbidez R1 (fondo) -->
+  <rect x="396" y="356" width="26" height="30" rx="4" fill="#1d3a4f"/>
+  <path class="cable" d="M409 356 V196"/>
+  <g class="num"><circle cx="356" cy="372" r="13"/><text x="356" y="377">5</text></g>
+  <!-- TDS -->
+  <path class="cable" d="M562 182 V292"/>
+  <rect x="556" y="288" width="12" height="34" rx="4" fill="#e8edf1" stroke="#17252f" stroke-width="2"/>
+  <g class="num"><circle cx="604" cy="304" r="13"/><text x="604" y="309">6</text></g>
+  <!-- flotador -->
+  <rect x="388" y="262" width="12" height="22" rx="6" fill="#f2c94c" stroke="#a07c12" stroke-width="2" opacity=".35"/>
+  <g class="num off"><circle cx="356" cy="272" r="13"/><text x="356" y="277">7</text></g>
+  <!-- grifo + electroválvula R1 → filtro -->
+  <rect x="580" y="378" width="24" height="12" fill="#5b6b77"/>
+  <path d="M612 374 l18 10 l-18 10 z M648 374 l-18 10 l18 10 z" fill="#3c4a55"/>
+  <rect x="624" y="362" width="12" height="12" fill="#3c4a55"/>
+  <g class="num"><circle cx="630" cy="344" r="13"/><text x="630" y="349">8</text></g>
+  <path class="clara" d="M648 384 H730 V402"/>
+  <!-- purga -->
+  <path class="lodo" d="M500 410 V470"/>
+  <path d="M488 470 l12 18 l12 -18 z M488 506 l12 -18 l12 18 z" fill="#3c4a55"/>
+  <g class="num"><circle cx="534" cy="488" r="13"/><text x="534" y="493">9</text></g>
+  <path class="lodo" d="M500 506 V870"/>
+  <path d="M462 878 h76 l-8 66 h-60 z" fill="#d9c7a6" stroke="#8a6239" stroke-width="3"/>
+  <text x="500" y="922" font-size="13" font-weight="700" fill="#6b4a2b" text-anchor="middle">Lodo</text>
+  <text x="548" y="900" class="nota">riego /</text>
+  <text x="548" y="916" class="nota">desagüe</text>
+
+  <!-- ===== Filtro ===== -->
+  <text x="730" y="376" class="etapa" text-anchor="middle" dx="34" dy="-34">Filtrado</text>
+  <rect x="630" y="600" width="200" height="14" class="mueble"/>
+  <line x1="642" y1="614" x2="642" y2="948" class="pata"/>
+  <line x1="818" y1="614" x2="818" y2="948" class="pata"/>
+  <rect x="660" y="402" width="140" height="198" rx="10" fill="#eef6fb" stroke="#7a96a8" stroke-width="3"/>
+  <rect x="663" y="406" width="134" height="26" fill="#bcd9ec"/>
+  <rect x="663" y="432" width="134" height="48" fill="url(#arena)"/>
+  <rect x="663" y="482" width="134" height="42" fill="#2b2b2b"/>
+  <rect x="663" y="526" width="134" height="34" fill="url(#gravilla)"/>
+  <rect x="663" y="562" width="134" height="35" fill="url(#grava)"/>
+  <g stroke="#ffffff" stroke-width="2" stroke-dasharray="4 3">
+    <line x1="663" y1="481" x2="797" y2="481"/><line x1="663" y1="525" x2="797" y2="525"/><line x1="663" y1="561" x2="797" y2="561"/>
+  </g>
+  <g font-size="13" fill="#17252f">
+    <text x="810" y="461">Arena fina</text>
+    <text x="810" y="508">Carbón activado</text>
+    <text x="810" y="548">Gravilla</text>
+    <text x="810" y="584">Grava gruesa</text>
+  </g>
+  <g class="num off"><circle cx="818" cy="420" r="13"/><text x="818" y="425">10</text></g>
+  <path class="filtrada" d="M730 600 V626 H930 V652"/>
+
+  <!-- ===== R2 ===== -->
+  <text x="1010" y="604" class="etapa" text-anchor="middle" dx="-30">R2 · Desinfección</text>
+  <rect x="850" y="900" width="320" height="14" class="mueble"/>
+  <line x1="862" y1="914" x2="862" y2="948" class="pata"/>
+  <line x1="1158" y1="914" x2="1158" y2="948" class="pata"/>
+  <rect x="880" y="670" width="200" height="230" rx="18" class="vidrio"/>
+  <g clip-path="url(#cR2)"><rect x="880" y="715" width="200" height="185" fill="#7cb8e6" opacity=".55"/></g>
+  <rect x="880" y="670" width="200" height="230" rx="18" fill="none" stroke="#7a96a8" stroke-width="3"/>
+  <rect x="900" y="650" width="160" height="22" rx="4" class="tapa"/>
+  <!-- HC-SR04 R2 -->
+  <rect x="972" y="634" width="42" height="16" rx="2" fill="#1f6fb2"/>
+  <circle cx="983" cy="642" r="5" fill="#cfd8df"/><circle cx="1003" cy="642" r="5" fill="#cfd8df"/>
+  <g class="num uno"><circle cx="1030" cy="630" r="13"/><text x="1030" y="635">11</text></g>
+  <!-- turbidez R2 bajo la caída del filtro -->
+  <path d="M930 672 V700" stroke="#2f8fd8" stroke-width="4" stroke-dasharray="3 4"/>
+  <rect x="918" y="752" width="24" height="28" rx="4" fill="#1d3a4f"/>
+  <path class="cable" d="M936 752 V672"/>
+  <g class="num"><circle cx="962" cy="790" r="13"/><text x="962" y="795">12</text></g>
+  <!-- pH -->
+  <path class="cable" d="M1042 672 V800"/>
+  <rect x="1035" y="796" width="14" height="44" rx="6" fill="#e8edf1" stroke="#17252f" stroke-width="2"/>
+  <g class="num"><circle cx="1012" cy="830" r="13"/><text x="1012" y="835">13</text></g>
+  <!-- cloro -->
+  <rect x="1094" y="790" width="54" height="110" rx="8" fill="#f3eefe" stroke="#8b5cf6" stroke-width="3"/>
+  <rect x="1108" y="778" width="26" height="14" rx="3" fill="#8b5cf6"/>
+  <text x="1121" y="850" font-size="13" font-weight="700" fill="#8b5cf6" text-anchor="middle">Cloro</text>
+  <text x="1121" y="866" font-size="12" fill="#8b5cf6" text-anchor="middle">5 %</text>
+  <circle cx="1121" cy="728" r="17" fill="#fff" stroke="#8b5cf6" stroke-width="3"/>
+  <circle cx="1121" cy="728" r="6" fill="#8b5cf6"/>
+  <path class="cloro" d="M1121 778 V745"/>
+  <path class="cloro" d="M1106 718 C1080 690 1060 676 1050 662"/>
+  <g class="num"><circle cx="1150" cy="702" r="13"/><text x="1150" y="707">14</text></g>
+  <!-- grifo de salida -->
+  <rect x="856" y="874" width="24" height="12" fill="#5b6b77"/>
+  <path d="M760 870 h50 l-6 64 h-38 z" fill="#e6f2fb" stroke="#5f9cc8" stroke-width="3"/>
+  <rect x="765" y="890" width="40" height="40" fill="#7cb8e6" opacity=".6"/>
+  <path class="filtrada" d="M856 880 C840 880 830 866 812 866" stroke-width="4"/>
+  <g class="num off"><circle cx="838" cy="850" r="13"/><text x="838" y="855">15</text></g>
+  <text x="785" y="972" font-size="14" font-weight="700" fill="#1f9d55" text-anchor="middle">Agua segura</text>
+
+  <!-- gravedad -->
+  <path d="M1110 150 V560" stroke="#5b6b77" stroke-width="2" stroke-dasharray="6 6" marker-end="url(#flecha)"/>
+  <text x="1124" y="230" class="nota" transform="rotate(90 1124 230)">el agua baja por gravedad (cascada)</text>
+
+  <!-- ===== Caja de control: Arduino UNO + ESP32 ===== -->
+  <rect x="1180" y="110" width="390" height="430" rx="14" class="panel"/>
+  <text x="1200" y="142" class="etapa">Caja de control · dos placas</text>
+  <!-- UNO -->
+  <rect x="1200" y="160" width="150" height="88" rx="8" fill="#0f8a7e"/>
+  <rect x="1214" y="174" width="44" height="30" rx="3" fill="#cfe9e5"/>
+  <rect x="1300" y="172" width="36" height="12" rx="2" fill="#0b6159"/>
+  <text x="1275" y="234" font-size="15" font-weight="700" fill="#fff" text-anchor="middle">Arduino UNO</text>
+  <!-- ESP32 -->
+  <rect x="1400" y="160" width="150" height="88" rx="8" fill="#1d3a4f"/>
+  <rect x="1414" y="174" width="56" height="34" rx="3" fill="#b9c4cc"/>
+  <path d="M1500 188 a16 16 0 0 1 22 0 M1495 182 a24 24 0 0 1 32 0" fill="none" stroke="#9cc8ea" stroke-width="2.5"/>
+  <text x="1475" y="234" font-size="15" font-weight="700" fill="#fff" text-anchor="middle">ESP32</text>
+  <!-- enlace serie -->
+  <line x1="1352" y1="200" x2="1394" y2="200" stroke="#e07b00" stroke-width="3" marker-end="url(#flecha)"/>
+  <text x="1375" y="190" font-size="11" font-weight="700" fill="#e07b00" text-anchor="middle">serie</text>
+  <text x="1375" y="268" font-size="12" fill="#e07b00" text-anchor="middle" font-weight="700">D7 → GPIO16 · cada 0,5 s: N,cm R1,cm R2,etapa</text>
+  <!-- relés UNO -->
+  <g fill="#0f8a7e">
+    <rect x="1200" y="282" width="34" height="30" rx="4"/><rect x="1238" y="282" width="34" height="30" rx="4" opacity=".45"/>
+    <rect x="1276" y="282" width="34" height="30" rx="4"/><rect x="1314" y="282" width="34" height="30" rx="4" opacity=".45"/>
+  </g>
+  <g font-size="11" fill="#fff" text-anchor="middle" font-weight="700">
+    <text x="1217" y="301">D8</text><text x="1255" y="301">D9</text><text x="1293" y="301">D10</text><text x="1331" y="301">D11</text>
+  </g>
+  <text x="1200" y="328" class="nota">entrada · libre · batidor · libre</text>
+  <text x="1200" y="346" class="nota">Nivel R1 D2/D3 · R2 D4/D5</text>
+  <!-- relés ESP32 -->
+  <g fill="#1d3a4f">
+    <rect x="1400" y="282" width="34" height="30" rx="4"/><rect x="1438" y="282" width="34" height="30" rx="4"/>
+    <rect x="1476" y="282" width="34" height="30" rx="4"/><rect x="1514" y="282" width="34" height="30" rx="4"/>
+  </g>
+  <g font-size="11" fill="#fff" text-anchor="middle" font-weight="700">
+    <text x="1417" y="301">32</text><text x="1455" y="301">33</text><text x="1493" y="301">23</text><text x="1531" y="301">13</text>
+  </g>
+  <text x="1400" y="328" class="nota">PAC · filtro · purga · cloro</text>
+  <text x="1400" y="346" class="nota">Turbidez ×2 · TDS · pH</text>
+  <!-- semáforo, buzzer, botón, LCD (ESP32) -->
+  <rect x="1200" y="366" width="110" height="36" rx="10" fill="#2d3a44"/>
+  <circle cx="1222" cy="384" r="11" fill="#d63c3c"/><circle cx="1255" cy="384" r="11" fill="#d69e0b"/><circle cx="1288" cy="384" r="11" fill="#1f9d55"/>
+  <circle cx="1332" cy="384" r="13" fill="#3c4a55"/><circle cx="1332" cy="384" r="5" fill="#17252f"/>
+  <circle cx="1368" cy="384" r="12" fill="#d63c3c" stroke="#7a2020" stroke-width="3"/>
+  <rect x="1394" y="362" width="156" height="46" rx="6" fill="#23395b"/>
+  <rect x="1402" y="369" width="140" height="32" rx="3" fill="#7fd27f"/>
+  <text x="1408" y="382" font-size="11" font-family="Liberation Mono, monospace" fill="#123">Agua lista</text>
+  <text x="1408" y="396" font-size="11" font-family="Liberation Mono, monospace" fill="#123">R2  82%  pH 7.0</text>
+  <text x="1200" y="426" class="nota">ESP32: semáforo 14/27/26 · buzzer 25 · botón 4 · LCD 21/22</text>
+  <text x="1200" y="452" class="nota">Divisor 1 kΩ / 2 kΩ en D7 (5 V → 3,3 V) · GND común</text>
+  <text x="1200" y="476" class="nota">Fuente 12 V (bombas y motor) + 5 V (UNO y ESP32)</text>
+  <text x="1200" y="500" class="nota">WiFi propio "AquaAlerta" → 192.168.4.1 (sin internet)</text>
+  <text x="1200" y="524" class="nota">Página: estado, gráficos, recipientes · /panel: red de aljibes</text>
+
+  <!-- ===== Lista de componentes ===== -->
+  <rect x="1180" y="560" width="390" height="500" rx="14" class="panel"/>
+  <text x="1200" y="592" class="etapa">Componentes · placa y pin</text>
+  <circle cx="1446" cy="586" r="7" fill="#0f8a7e"/><text x="1457" y="591" class="nota">UNO</text>
+  <circle cx="1502" cy="586" r="7" fill="#1d3a4f"/><text x="1513" y="591" class="nota">ESP32</text>
+  <g class="lst">
+    <circle cx="1212" cy="619" r="11" fill="#0f8a7e"/><text x="1212" y="623" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">1</text>
+    <text x="1232" y="624">Bomba de entrada a R1</text><text x="1555" y="624" class="gpio" text-anchor="end" fill="#0f8a7e" style="fill:#0f8a7e">UNO D8</text>
+    <circle cx="1212" cy="647" r="11" fill="#0f8a7e"/><text x="1212" y="651" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">2</text>
+    <text x="1232" y="652">HC-SR04 nivel R1</text><text x="1555" y="652" class="gpio" text-anchor="end" fill="#0f8a7e" style="fill:#0f8a7e">UNO D2 / D3</text>
+    <circle cx="1212" cy="675" r="11" fill="#0f8a7e"/><text x="1212" y="679" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">3</text>
+    <text x="1232" y="680">Motor del batidor + paleta</text><text x="1555" y="680" class="gpio" text-anchor="end" fill="#0f8a7e" style="fill:#0f8a7e">UNO D10</text>
+    <circle cx="1212" cy="703" r="11" fill="#1d3a4f"/><text x="1212" y="707" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">4</text>
+    <text x="1232" y="708">Bomba de PAC (dosis por turbidez)</text><text x="1555" y="708" class="gpio" text-anchor="end" fill="#1d3a4f" style="fill:#1d3a4f">ESP32 32</text>
+    <circle cx="1212" cy="731" r="11" fill="#1d3a4f"/><text x="1212" y="735" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">5</text>
+    <text x="1232" y="736">Turbidez R1, cerca del fondo (lodo)</text><text x="1555" y="736" class="gpio" text-anchor="end" fill="#1d3a4f" style="fill:#1d3a4f">ESP32 35</text>
+    <circle cx="1212" cy="759" r="11" fill="#1d3a4f"/><text x="1212" y="763" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">6</text>
+    <text x="1232" y="764">Sensor TDS (sales disueltas)</text><text x="1555" y="764" class="gpio" text-anchor="end" fill="#1d3a4f" style="fill:#1d3a4f">ESP32 39</text>
+    <circle cx="1212" cy="787" r="11" fill="#9aa7b1"/><text x="1212" y="791" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">7</text>
+    <text x="1232" y="792">Flotador (no se usa: nivel del UNO)</text><text x="1555" y="792" class="gpio" text-anchor="end" fill="#9aa7b1" style="fill:#9aa7b1">–</text>
+    <circle cx="1212" cy="815" r="11" fill="#1d3a4f"/><text x="1212" y="819" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">8</text>
+    <text x="1232" y="820">Bomba R1 → filtro (si R2 no está lleno)</text><text x="1555" y="820" class="gpio" text-anchor="end" fill="#1d3a4f" style="fill:#1d3a4f">ESP32 33</text>
+    <circle cx="1212" cy="843" r="11" fill="#1d3a4f"/><text x="1212" y="847" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">9</text>
+    <text x="1232" y="848">Purga de lodo (válvula o bomba)</text><text x="1555" y="848" class="gpio" text-anchor="end" fill="#1d3a4f" style="fill:#1d3a4f">ESP32 23</text>
+    <circle cx="1212" cy="871" r="11" fill="#9aa7b1"/><text x="1212" y="875" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">10</text>
+    <text x="1232" y="876">Filtro de capas (agua baja por gravedad)</text><text x="1555" y="876" class="gpio" text-anchor="end" fill="#9aa7b1" style="fill:#9aa7b1">–</text>
+    <circle cx="1212" cy="899" r="11" fill="#0f8a7e"/><text x="1212" y="903" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">11</text>
+    <text x="1232" y="904">HC-SR04 nivel R2 (tanque final)</text><text x="1555" y="904" class="gpio" text-anchor="end" fill="#0f8a7e" style="fill:#0f8a7e">UNO D4 / D5</text>
+    <circle cx="1212" cy="927" r="11" fill="#1d3a4f"/><text x="1212" y="931" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">12</text>
+    <text x="1232" y="932">Turbidez R2 (¿el filtro limpia?)</text><text x="1555" y="932" class="gpio" text-anchor="end" fill="#1d3a4f" style="fill:#1d3a4f">ESP32 36</text>
+    <circle cx="1212" cy="955" r="11" fill="#1d3a4f"/><text x="1212" y="959" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">13</text>
+    <text x="1232" y="960">Sensor de pH (PH-4502C)</text><text x="1555" y="960" class="gpio" text-anchor="end" fill="#1d3a4f" style="fill:#1d3a4f">ESP32 34</text>
+    <circle cx="1212" cy="983" r="11" fill="#1d3a4f"/><text x="1212" y="987" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">14</text>
+    <text x="1232" y="988">Bomba peristáltica + cloro</text><text x="1555" y="988" class="gpio" text-anchor="end" fill="#1d3a4f" style="fill:#1d3a4f">ESP32 13</text>
+    <circle cx="1212" cy="1011" r="11" fill="#9aa7b1"/><text x="1212" y="1015" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">15</text>
+    <text x="1232" y="1016">Grifo de agua segura</text><text x="1555" y="1016" class="gpio" text-anchor="end" fill="#9aa7b1" style="fill:#9aa7b1">–</text>
+  </g>
+  <text x="1200" y="1044" class="nota">Medidas de R1 y R2 configurables desde la página del ESP32.</text>
+
+  <!-- ===== Leyenda de líneas ===== -->
+  <g transform="translate(400 1000)">
+    <text x="0" y="0" class="etapa" font-size="15">Líneas</text>
+    <line x1="0" y1="20" x2="34" y2="20" class="cruda"/><text x="42" y="25" class="nota">agua cruda</text>
+    <line x1="150" y1="20" x2="184" y2="20" class="clara"/><text x="192" y="25" class="nota">clarificada</text>
+    <line x1="300" y1="20" x2="334" y2="20" class="filtrada"/><text x="342" y="25" class="nota">filtrada / segura</text>
+    <line x1="0" y1="50" x2="34" y2="50" class="lodo"/><text x="42" y="55" class="nota">lodo</text>
+    <line x1="150" y1="50" x2="184" y2="50" class="pac"/><text x="192" y="55" class="nota">PAC (coagulante)</text>
+    <line x1="300" y1="50" x2="334" y2="50" class="cloro"/><text x="342" y="55" class="nota">cloro</text>
+    <circle cx="474" cy="20" r="9" fill="#0f8a7e"/><text x="490" y="25" class="nota">controla el UNO</text>
+    <circle cx="474" cy="50" r="9" fill="#1d3a4f"/><text x="490" y="55" class="nota">controla el ESP32</text>
+  </g>
+</svg>

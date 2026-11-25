@@ -1,0 +1,181 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1700 920" width="1700" height="920" font-family="Liberation Sans, Arial, sans-serif">
+<rect width="1700" height="920" fill="#f6f9fb"/>
+<text x="40" y="50" font-size="28" font-weight="700" fill="#17252f">AquaAlerta · Conexiones Arduino UNO + ESP32 (Wokwi)</text>
+<text x="40" y="78" font-size="15" fill="#5b6b77">El UNO mide los niveles y maneja la entrada y el batidor; le envía al ESP32 por serie (D7 → GPIO16) los niveles y la etapa. El ESP32 mide la calidad del agua y maneja PAC, filtro, purga y cloro.</text>
+<rect x="120" y="150" width="200" height="560" rx="14" fill="#0f8a7e"/>
+<rect x="140" y="170" width="54" height="40" rx="4" fill="#b8c2c8"/><rect x="150" y="640" width="40" height="40" rx="4" fill="#2b2b2b"/>
+<text x="205" y="455" font-size="22" fill="#fff" font-weight="700" text-anchor="middle">Arduino UNO</text>
+<text x="205" y="480" font-size="14" fill="#cfe9e5" font-weight="400" text-anchor="middle">5 V</text>
+<circle cx="320" cy="200" r="5" fill="#e9c46a" stroke="#7a5c12" stroke-width="1.5"/>
+<text x="308" y="205" font-size="14" font-weight="700" fill="#fff" text-anchor="end">D2</text>
+<circle cx="320" cy="230" r="5" fill="#e9c46a" stroke="#7a5c12" stroke-width="1.5"/>
+<text x="308" y="235" font-size="14" font-weight="700" fill="#fff" text-anchor="end">D3</text>
+<circle cx="320" cy="290" r="5" fill="#e9c46a" stroke="#7a5c12" stroke-width="1.5"/>
+<text x="308" y="295" font-size="14" font-weight="700" fill="#fff" text-anchor="end">D4</text>
+<circle cx="320" cy="320" r="5" fill="#e9c46a" stroke="#7a5c12" stroke-width="1.5"/>
+<text x="308" y="325" font-size="14" font-weight="700" fill="#fff" text-anchor="end">D5</text>
+<circle cx="320" cy="400" r="5" fill="#e9c46a" stroke="#7a5c12" stroke-width="1.5"/>
+<text x="308" y="405" font-size="14" font-weight="700" fill="#fff" text-anchor="end">D7</text>
+<circle cx="320" cy="480" r="5" fill="#e9c46a" stroke="#7a5c12" stroke-width="1.5"/>
+<text x="308" y="485" font-size="14" font-weight="700" fill="#fff" text-anchor="end">D8</text>
+<circle cx="320" cy="540" r="5" fill="#e9c46a" stroke="#7a5c12" stroke-width="1.5"/>
+<text x="308" y="545" font-size="14" font-weight="700" fill="#fff" text-anchor="end">D9</text>
+<circle cx="320" cy="600" r="5" fill="#e9c46a" stroke="#7a5c12" stroke-width="1.5"/>
+<text x="308" y="605" font-size="14" font-weight="700" fill="#fff" text-anchor="end">D10</text>
+<circle cx="320" cy="660" r="5" fill="#e9c46a" stroke="#7a5c12" stroke-width="1.5"/>
+<text x="308" y="665" font-size="14" font-weight="700" fill="#fff" text-anchor="end">D11</text>
+<circle cx="170" cy="710" r="5" fill="#e9c46a" stroke="#7a5c12" stroke-width="1.5"/>
+<text x="182" y="715" font-size="14" font-weight="700" fill="#fff" text-anchor="start"></text>
+<circle cx="270" cy="710" r="5" fill="#e9c46a" stroke="#7a5c12" stroke-width="1.5"/>
+<text x="282" y="715" font-size="14" font-weight="700" fill="#fff" text-anchor="start"></text>
+<text x="170" y="738" font-size="13" fill="#17252f" font-weight="700" text-anchor="middle">5V</text>
+<text x="270" y="738" font-size="13" fill="#17252f" font-weight="700" text-anchor="middle">GND</text>
+<rect x="900" y="150" width="200" height="660" rx="14" fill="#1d3a4f"/>
+<rect x="925" y="170" width="150" height="70" rx="4" fill="#b9c4cc"/>
+<path d="M1040 260 a16 16 0 0 1 22 0 M1035 254 a24 24 0 0 1 32 0" fill="none" stroke="#9cc8ea" stroke-width="2.5"/>
+<text x="1000" y="470" font-size="22" fill="#fff" font-weight="700" text-anchor="middle">ESP32</text>
+<text x="1000" y="496" font-size="14" fill="#b9c4cc" font-weight="400" text-anchor="middle">3,3 V</text>
+<circle cx="900" cy="400" r="5" fill="#e9c46a" stroke="#7a5c12" stroke-width="1.5"/>
+<text x="912" y="405" font-size="14" font-weight="700" fill="#fff" text-anchor="start">GPIO16</text>
+<circle cx="900" cy="600" r="5" fill="#e9c46a" stroke="#7a5c12" stroke-width="1.5"/>
+<text x="912" y="605" font-size="14" font-weight="700" fill="#fff" text-anchor="start">GND</text>
+<circle cx="1100" cy="200" r="5" fill="#e9c46a" stroke="#7a5c12" stroke-width="1.5"/>
+<text x="1088" y="205" font-size="14" font-weight="700" fill="#fff" text-anchor="end">35</text>
+<circle cx="1100" cy="240" r="5" fill="#e9c46a" stroke="#7a5c12" stroke-width="1.5"/>
+<text x="1088" y="245" font-size="14" font-weight="700" fill="#fff" text-anchor="end">36</text>
+<circle cx="1100" cy="280" r="5" fill="#e9c46a" stroke="#7a5c12" stroke-width="1.5"/>
+<text x="1088" y="285" font-size="14" font-weight="700" fill="#fff" text-anchor="end">34</text>
+<circle cx="1100" cy="320" r="5" fill="#e9c46a" stroke="#7a5c12" stroke-width="1.5"/>
+<text x="1088" y="325" font-size="14" font-weight="700" fill="#fff" text-anchor="end">39</text>
+<circle cx="1100" cy="380" r="5" fill="#e9c46a" stroke="#7a5c12" stroke-width="1.5"/>
+<text x="1088" y="385" font-size="14" font-weight="700" fill="#fff" text-anchor="end">32</text>
+<circle cx="1100" cy="420" r="5" fill="#e9c46a" stroke="#7a5c12" stroke-width="1.5"/>
+<text x="1088" y="425" font-size="14" font-weight="700" fill="#fff" text-anchor="end">33</text>
+<circle cx="1100" cy="460" r="5" fill="#e9c46a" stroke="#7a5c12" stroke-width="1.5"/>
+<text x="1088" y="465" font-size="14" font-weight="700" fill="#fff" text-anchor="end">23</text>
+<circle cx="1100" cy="500" r="5" fill="#e9c46a" stroke="#7a5c12" stroke-width="1.5"/>
+<text x="1088" y="505" font-size="14" font-weight="700" fill="#fff" text-anchor="end">13</text>
+<circle cx="1100" cy="550" r="5" fill="#e9c46a" stroke="#7a5c12" stroke-width="1.5"/>
+<text x="1088" y="555" font-size="14" font-weight="700" fill="#fff" text-anchor="end">21</text>
+<circle cx="1100" cy="580" r="5" fill="#e9c46a" stroke="#7a5c12" stroke-width="1.5"/>
+<text x="1088" y="585" font-size="14" font-weight="700" fill="#fff" text-anchor="end">22</text>
+<circle cx="1100" cy="630" r="5" fill="#e9c46a" stroke="#7a5c12" stroke-width="1.5"/>
+<text x="1088" y="635" font-size="14" font-weight="700" fill="#fff" text-anchor="end">26</text>
+<circle cx="1100" cy="660" r="5" fill="#e9c46a" stroke="#7a5c12" stroke-width="1.5"/>
+<text x="1088" y="665" font-size="14" font-weight="700" fill="#fff" text-anchor="end">27</text>
+<circle cx="1100" cy="690" r="5" fill="#e9c46a" stroke="#7a5c12" stroke-width="1.5"/>
+<text x="1088" y="695" font-size="14" font-weight="700" fill="#fff" text-anchor="end">14</text>
+<circle cx="1100" cy="735" r="5" fill="#e9c46a" stroke="#7a5c12" stroke-width="1.5"/>
+<text x="1088" y="740" font-size="14" font-weight="700" fill="#fff" text-anchor="end">25</text>
+<circle cx="1100" cy="770" r="5" fill="#e9c46a" stroke="#7a5c12" stroke-width="1.5"/>
+<text x="1088" y="775" font-size="14" font-weight="700" fill="#fff" text-anchor="end">4</text>
+<path d="M320 200 H470 V200" fill="none" stroke="#f28c28" stroke-width="3"/>
+<path d="M320 230 H470 V230" fill="none" stroke="#e9c400" stroke-width="3"/>
+<rect x="470" y="178" width="150" height="74" rx="6" fill="#1f6fb2"/>
+<circle cx="575" cy="215.0" r="13" fill="#cfd8df"/><circle cx="605" cy="215.0" r="0" fill="#cfd8df"/>
+<text x="480" y="205" font-size="12" fill="#fff" font-weight="700" text-anchor="start">TRIG</text>
+<text x="480" y="235" font-size="12" fill="#fff" font-weight="700" text-anchor="start">ECHO</text>
+<text x="632" y="220.0" font-size="14" fill="#17252f" font-weight="700" text-anchor="start">HC-SR04 · nivel R1</text>
+<path d="M320 290 H470 V290" fill="none" stroke="#f28c28" stroke-width="3"/>
+<path d="M320 320 H470 V320" fill="none" stroke="#e9c400" stroke-width="3"/>
+<rect x="470" y="268" width="150" height="74" rx="6" fill="#1f6fb2"/>
+<circle cx="575" cy="305.0" r="13" fill="#cfd8df"/><circle cx="605" cy="305.0" r="0" fill="#cfd8df"/>
+<text x="480" y="295" font-size="12" fill="#fff" font-weight="700" text-anchor="start">TRIG</text>
+<text x="480" y="325" font-size="12" fill="#fff" font-weight="700" text-anchor="start">ECHO</text>
+<text x="632" y="310.0" font-size="14" fill="#17252f" font-weight="700" text-anchor="start">HC-SR04 · nivel R2 (tanque final)</text>
+<path d="M320 400 H480 V400" fill="none" stroke="#e07b00" stroke-width="3"/>
+<rect x="480" y="390" width="80" height="20" rx="4" fill="#d9c7a6" stroke="#8a6239" stroke-width="2"/>
+<text x="520" y="384" font-size="13" fill="#6b4a2b" font-weight="700" text-anchor="middle">1 kΩ</text>
+<path d="M560 400 H900 V400" fill="none" stroke="#e07b00" stroke-width="3"/>
+<circle cx="820" cy="400" r="5" fill="#e07b00"/>
+<path d="M820 400 H820 V430" fill="none" stroke="#e07b00" stroke-width="3"/>
+<rect x="810" y="430" width="20" height="70" rx="4" fill="#d9c7a6" stroke="#8a6239" stroke-width="2"/>
+<text x="838" y="470" font-size="13" fill="#6b4a2b" font-weight="700" text-anchor="start">2 kΩ</text>
+<path d="M820 500 H820 V600" fill="none" stroke="#17252f" stroke-width="3"/>
+<path d="M820 600 H900 V600" fill="none" stroke="#17252f" stroke-width="3"/>
+<text x="580" y="378" font-size="13" fill="#e07b00" font-weight="700" text-anchor="start">TX serie 9600 · N,cm R1,cm R2,etapa</text>
+<text x="836" y="590" font-size="13" fill="#17252f" font-weight="700" text-anchor="start">GND</text>
+<path d="M270 715 V830 H820 V600" fill="none" stroke="#17252f" stroke-width="3"/>
+<path d="M320 480 H440 V480" fill="none" stroke="#32cd32" stroke-width="3"/>
+<rect x="440" y="462" width="96" height="36" rx="4" fill="#1f6fb2"/><rect x="496" y="468" width="30" height="24" rx="2" fill="#2b3b47"/>
+<text x="448" y="485" font-size="12" fill="#fff" font-weight="700" text-anchor="start">RELÉ</text>
+<circle cx="560" cy="480" r="11" fill="#32cd32" stroke="#17252f" stroke-width="1.5"/>
+<text x="580" y="485" font-size="14" fill="#17252f" font-weight="700" text-anchor="start">D8 · Bomba entrada R1</text>
+<path d="M320 540 H440 V540" fill="none" stroke="#9aa7b1" stroke-width="3"/>
+<rect x="440" y="522" width="96" height="36" rx="4" fill="#1f6fb2"/><rect x="496" y="528" width="30" height="24" rx="2" fill="#2b3b47"/>
+<text x="448" y="545" font-size="12" fill="#fff" font-weight="700" text-anchor="start">RELÉ</text>
+<circle cx="560" cy="540" r="11" fill="#ffffff" stroke="#17252f" stroke-width="1.5"/>
+<text x="580" y="545" font-size="14" fill="#17252f" font-weight="700" text-anchor="start">D9 · Libre</text>
+<path d="M320 600 H440 V600" fill="none" stroke="#22b8cf" stroke-width="3"/>
+<rect x="440" y="582" width="96" height="36" rx="4" fill="#1f6fb2"/><rect x="496" y="588" width="30" height="24" rx="2" fill="#2b3b47"/>
+<text x="448" y="605" font-size="12" fill="#fff" font-weight="700" text-anchor="start">RELÉ</text>
+<circle cx="560" cy="600" r="11" fill="#22b8cf" stroke="#17252f" stroke-width="1.5"/>
+<text x="580" y="605" font-size="14" fill="#17252f" font-weight="700" text-anchor="start">D10 · Motor batidor</text>
+<path d="M320 660 H440 V660" fill="none" stroke="#9aa7b1" stroke-width="3"/>
+<rect x="440" y="642" width="96" height="36" rx="4" fill="#1f6fb2"/><rect x="496" y="648" width="30" height="24" rx="2" fill="#2b3b47"/>
+<text x="448" y="665" font-size="12" fill="#fff" font-weight="700" text-anchor="start">RELÉ</text>
+<circle cx="560" cy="660" r="11" fill="#ffffff" stroke="#17252f" stroke-width="1.5"/>
+<text x="580" y="665" font-size="14" fill="#17252f" font-weight="700" text-anchor="start">D11 · Libre</text>
+<path d="M1100 200 H1230 V200" fill="none" stroke="#8a5a2b" stroke-width="3"/>
+<circle cx="1245" cy="200" r="13" fill="#2b3b47"/><line x1="1245" y1="200" x2="1253" y2="191" stroke="#fff" stroke-width="3"/>
+<text x="1268" y="205" font-size="14" fill="#17252f" font-weight="700" text-anchor="start">Turbidez R1 (potenciómetro)</text>
+<path d="M1100 240 H1230 V240" fill="none" stroke="#2a9d55" stroke-width="3"/>
+<circle cx="1245" cy="240" r="13" fill="#2b3b47"/><line x1="1245" y1="240" x2="1253" y2="231" stroke="#fff" stroke-width="3"/>
+<text x="1268" y="245" font-size="14" fill="#17252f" font-weight="700" text-anchor="start">Turbidez R2</text>
+<path d="M1100 280 H1230 V280" fill="none" stroke="#2a9d55" stroke-width="3"/>
+<circle cx="1245" cy="280" r="13" fill="#2b3b47"/><line x1="1245" y1="280" x2="1253" y2="271" stroke="#fff" stroke-width="3"/>
+<text x="1268" y="285" font-size="14" fill="#17252f" font-weight="700" text-anchor="start">pH</text>
+<path d="M1100 320 H1230 V320" fill="none" stroke="#f28c28" stroke-width="3"/>
+<circle cx="1245" cy="320" r="13" fill="#2b3b47"/><line x1="1245" y1="320" x2="1253" y2="311" stroke="#fff" stroke-width="3"/>
+<text x="1268" y="325" font-size="14" fill="#17252f" font-weight="700" text-anchor="start">TDS</text>
+<path d="M1100 380 H1220 V380" fill="none" stroke="#f28c28" stroke-width="3"/>
+<rect x="1220" y="362" width="96" height="36" rx="4" fill="#1f6fb2"/><rect x="1276" y="368" width="30" height="24" rx="2" fill="#2b3b47"/>
+<text x="1228" y="385" font-size="12" fill="#fff" font-weight="700" text-anchor="start">RELÉ</text>
+<circle cx="1340" cy="380" r="11" fill="#f28c28" stroke="#17252f" stroke-width="1.5"/>
+<text x="1360" y="385" font-size="14" fill="#17252f" font-weight="700" text-anchor="start">Bomba de PAC (dosis por turbidez)</text>
+<path d="M1100 420 H1220 V420" fill="none" stroke="#8b5cf6" stroke-width="3"/>
+<rect x="1220" y="402" width="96" height="36" rx="4" fill="#1f6fb2"/><rect x="1276" y="408" width="30" height="24" rx="2" fill="#2b3b47"/>
+<text x="1228" y="425" font-size="12" fill="#fff" font-weight="700" text-anchor="start">RELÉ</text>
+<circle cx="1340" cy="420" r="11" fill="#a855f7" stroke="#17252f" stroke-width="1.5"/>
+<text x="1360" y="425" font-size="14" fill="#17252f" font-weight="700" text-anchor="start">Bomba R1 → filtro</text>
+<path d="M1100 460 H1220 V460" fill="none" stroke="#7c3aed" stroke-width="3"/>
+<rect x="1220" y="442" width="96" height="36" rx="4" fill="#1f6fb2"/><rect x="1276" y="448" width="30" height="24" rx="2" fill="#2b3b47"/>
+<text x="1228" y="465" font-size="12" fill="#fff" font-weight="700" text-anchor="start">RELÉ</text>
+<circle cx="1340" cy="460" r="11" fill="#3b82f6" stroke="#17252f" stroke-width="1.5"/>
+<text x="1360" y="465" font-size="14" fill="#17252f" font-weight="700" text-anchor="start">Purga de lodo</text>
+<path d="M1100 500 H1220 V500" fill="none" stroke="#9aa7b1" stroke-width="3"/>
+<rect x="1220" y="482" width="96" height="36" rx="4" fill="#1f6fb2"/><rect x="1276" y="488" width="30" height="24" rx="2" fill="#2b3b47"/>
+<text x="1228" y="505" font-size="12" fill="#fff" font-weight="700" text-anchor="start">RELÉ</text>
+<circle cx="1340" cy="500" r="11" fill="#ffffff" stroke="#17252f" stroke-width="1.5"/>
+<text x="1360" y="505" font-size="14" fill="#17252f" font-weight="700" text-anchor="start">Goteo de cloro</text>
+<path d="M1100 550 H1220 V550" fill="none" stroke="#3b82f6" stroke-width="3"/>
+<path d="M1100 580 H1220 V580" fill="none" stroke="#8b5cf6" stroke-width="3"/>
+<rect x="1220" y="535" width="230" height="60" rx="6" fill="#23395b"/><rect x="1232" y="544" width="206" height="42" rx="3" fill="#7fd27f"/>
+<text x="1240" y="562" font-size="13" font-family="Liberation Mono, monospace" fill="#123">Agua lista</text><text x="1240" y="579" font-size="13" font-family="Liberation Mono, monospace" fill="#123">R2  82%  pH 7.0</text>
+<text x="1462" y="562" font-size="14" fill="#17252f" font-weight="700" text-anchor="start">LCD 16x2 I2C</text>
+<text x="1462" y="582" font-size="13" fill="#5b6b77" font-weight="400" text-anchor="start">SDA 21 · SCL 22</text>
+<path d="M1100 630 H1220 V630" fill="none" stroke="#1f9d55" stroke-width="3"/>
+<rect x="1220" y="622" width="40" height="16" rx="3" fill="#d9c7a6" stroke="#8a6239"/>
+<circle cx="1290" cy="630" r="11" fill="#1f9d55" stroke="#17252f" stroke-width="1.5"/>
+<text x="1310" y="635" font-size="14" fill="#17252f" font-weight="700" text-anchor="start">Verde · agua lista</text>
+<path d="M1100 660 H1220 V660" fill="none" stroke="#d69e0b" stroke-width="3"/>
+<rect x="1220" y="652" width="40" height="16" rx="3" fill="#d9c7a6" stroke="#8a6239"/>
+<circle cx="1290" cy="660" r="11" fill="#d69e0b" stroke="#17252f" stroke-width="1.5"/>
+<text x="1310" y="665" font-size="14" fill="#17252f" font-weight="700" text-anchor="start">Amarillo · en proceso</text>
+<path d="M1100 690 H1220 V690" fill="none" stroke="#d63c3c" stroke-width="3"/>
+<rect x="1220" y="682" width="40" height="16" rx="3" fill="#d9c7a6" stroke="#8a6239"/>
+<circle cx="1290" cy="690" r="11" fill="#d63c3c" stroke="#17252f" stroke-width="1.5"/>
+<text x="1310" y="695" font-size="14" fill="#17252f" font-weight="700" text-anchor="start">Rojo · alarma</text>
+<text x="1240" y="716" font-size="12" fill="#6b4a2b" font-weight="400" text-anchor="middle">220 Ω</text>
+<path d="M1100 735 H1230 V735" fill="none" stroke="#d63384" stroke-width="3"/>
+<circle cx="1245" cy="735" r="14" fill="#2b2b2b"/>
+<text x="1268" y="740" font-size="14" fill="#17252f" font-weight="700" text-anchor="start">Buzzer</text>
+<path d="M1100 770 H1230 V770" fill="none" stroke="#22b8cf" stroke-width="3"/>
+<circle cx="1245" cy="770" r="12" fill="#1f6fb2" stroke="#123" stroke-width="2"/>
+<text x="1268" y="775" font-size="14" fill="#17252f" font-weight="700" text-anchor="start">Botón silenciar / reset</text>
+<g transform="translate(40 870)">
+<text x="0" y="0" font-size="14" fill="#17252f" font-weight="700" text-anchor="start">Notas:</text>
+<text x="60" y="0" font-size="13" fill="#5b6b77" font-weight="400" text-anchor="start">Ultrasonidos y relés del UNO alimentados con 5 V/GND del UNO · relés del ESP32 con 5 V/GND del ESP32 · los LED muestran cuándo se activa cada relé.</text>
+<text x="60" y="22" font-size="13" fill="#5b6b77" font-weight="400" text-anchor="start">Dibujo hecho a partir de wokwi-uno/diagram.json · en el simulador los sensores de turbidez, pH y TDS son potenciómetros.</text>
+</g>
+</svg>

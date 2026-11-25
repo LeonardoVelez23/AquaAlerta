@@ -1,0 +1,10 @@
+# Simulación con Arduino UNO + ESP32 (firmware del ESP32 compilado con: pio run -e esp32dev_uno)
+# En VS Code: «Wokwi: Select Config File» → wokwi-uno/wokwi.toml
+[wokwi]
+version = 1
+firmware = '../.pio/build/esp32dev_uno/firmware.bin'
+elf = '../.pio/build/esp32dev_uno/firmware.elf'
+
+[[net.forward]]
+from = "localhost:8180"
+to = "target:80"
